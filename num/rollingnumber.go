@@ -81,10 +81,11 @@ func (n *RollingNumber) findCurrentBucket() uint {
 	if bucketsBehind > 0 {
 		// We are not in the current bucket so we must reset the values of
 		// buckets that fell out of the sliding window.
-		for i := uint(1); i <= bucketsBehind; i++ {
-			n.buckets[(n.currentBucket+i)%uint(len(n.buckets))] = 0
+		numBuckets := uint(len(n.buckets))
+		for i := uint(1); i <= bucketsBehind%numBuckets; i++ {
+			n.buckets[(n.currentBucket+i)%numBuckets] = 0
 		}
-		n.currentBucket = (n.currentBucket + bucketsBehind) % uint(len(n.buckets))
+		n.currentBucket = (n.currentBucket + bucketsBehind) % numBuckets
 		n.currentBucketTime = now
 	}
 	return n.currentBucket
