@@ -30,17 +30,7 @@ func NewExecutor() *Executor {
 func (e *Executor) Exec(cmd Command, result interface{}) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = cmd.Fallback(result)
-			if err != nil {
-				switch x := r.(type) {
-				case error:
-					err = x
-				case string:
-					err = errors.New(x)
-				default:
-					err = UnknownPanic
-				}
-			}
+			err = execFallback(cmd, result, r)
 		}
 	}()
 	cb := e.getCircuitBreakerForCommand(cmd)
@@ -49,9 +39,39 @@ func (e *Executor) Exec(cmd Command, result interface{}) (err error) {
 		return cmd.Run(result)
 	})
 	if err != nil {
+		// Panic with error and handle it the same as panic.
 		panic(err)
 	}
 	return nil
+}
+
+// executeFallback handles a fallback for a failed command.
+// Because a Fallback can panic too errors are recovered the same wasy as for Exec.
+func execFallback(cmd Command, result interface{}, r interface{}) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = panicToError(r)
+		}
+	}()
+	err = cmd.Fallback(result)
+	if err != nil {
+		err = panicToError(r)
+	}
+	return err
+}
+
+// panicToError converts a panic value to a matching error value or a generic
+// UnknownPanic for unhandled types.
+func panicToError(r interface{}) (err error) {
+	switch x := r.(type) {
+	case error:
+		err = x
+	case string:
+		err = errors.New(x)
+	default:
+		err = UnknownPanic
+	}
+	return err
 }
 
 // getcircuitbreakerforcommand returns a circuit breaker for a command or constructs

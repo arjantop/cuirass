@@ -38,6 +38,8 @@ func (c *FooCommand) Fallback(result interface{}) error {
 		return cuirass.FallbackNotImplemented
 	} else if c.f == "error" {
 		return errors.New("fallbackerr")
+	} else if c.f == "panic" {
+		panic("fallpanic")
 	}
 	*result.(*string) = c.f
 	return nil
@@ -57,6 +59,13 @@ func TestExecErrorWithFallback(t *testing.T) {
 	var r string
 	assert.Nil(t, ex.Exec(cmd, &r))
 	assert.Equal(t, r, "fallback")
+}
+
+func TestExecErrorWithFallbackPanic(t *testing.T) {
+	cmd := NewFooCommand("error", "panic")
+	ex := cuirass.NewExecutor()
+	var r string
+	assert.Equal(t, errors.New("fallpanic"), ex.Exec(cmd, &r))
 }
 
 func TestExecErrorWithoutFallback(t *testing.T) {
