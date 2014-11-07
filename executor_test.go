@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/arjantop/cuirass"
+	"github.com/arjantop/cuirass/circuitbreaker"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -93,4 +94,14 @@ func TestExecIntPanicWithoutFallback(t *testing.T) {
 	ex := cuirass.NewExecutor()
 	var r string
 	assert.Equal(t, ex.Exec(cmd, &r), cuirass.UnknownPanic)
+}
+
+func TestExecFailuresTripCircuitBreaker(t *testing.T) {
+	cmd := NewFooCommand("error", "none")
+	ex := cuirass.NewExecutor()
+	var r string
+	for i := 0; i < int(circuitbreaker.DefaultRequestVolumeThreshold); i++ {
+		assert.Equal(t, ex.Exec(cmd, &r), errors.New("foo"))
+	}
+	assert.Equal(t, ex.Exec(cmd, &r), circuitbreaker.CircuitOpenError)
 }
