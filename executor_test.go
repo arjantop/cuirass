@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/arjantop/cuirass"
+	"github.com/arjantop/cuirass/circuitbreaker"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,6 +38,8 @@ func (c *FooCommand) Fallback(result interface{}) error {
 		return cuirass.FallbackNotImplemented
 	} else if c.f == "error" {
 		return errors.New("fallbackerr")
+	} else if c.f == "panic" {
+		panic("fallpanic")
 	}
 	*result.(*string) = c.f
 	return nil
@@ -56,6 +59,13 @@ func TestExecErrorWithFallback(t *testing.T) {
 	var r string
 	assert.Nil(t, ex.Exec(cmd, &r))
 	assert.Equal(t, r, "fallback")
+}
+
+func TestExecErrorWithFallbackPanic(t *testing.T) {
+	cmd := NewFooCommand("error", "panic")
+	ex := cuirass.NewExecutor()
+	var r string
+	assert.Equal(t, errors.New("fallpanic"), ex.Exec(cmd, &r))
 }
 
 func TestExecErrorWithoutFallback(t *testing.T) {
@@ -93,4 +103,14 @@ func TestExecIntPanicWithoutFallback(t *testing.T) {
 	ex := cuirass.NewExecutor()
 	var r string
 	assert.Equal(t, ex.Exec(cmd, &r), cuirass.UnknownPanic)
+}
+
+func TestExecFailuresTripCircuitBreaker(t *testing.T) {
+	cmd := NewFooCommand("error", "none")
+	ex := cuirass.NewExecutor()
+	var r string
+	for i := 0; i < int(circuitbreaker.DefaultRequestVolumeThreshold); i++ {
+		assert.Equal(t, ex.Exec(cmd, &r), errors.New("foo"))
+	}
+	assert.Equal(t, ex.Exec(cmd, &r), circuitbreaker.CircuitOpenError)
 }
