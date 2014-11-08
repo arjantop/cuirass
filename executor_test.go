@@ -12,40 +12,28 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type FooCommand struct {
-	s, f string
-}
-
-func NewFooCommand(s, f string) *FooCommand {
-	return &FooCommand{s, f}
-}
-
-func (c *FooCommand) Name() string {
-	return "FooCommand"
-}
-
-func (c *FooCommand) Run(ctx context.Context, result interface{}) error {
-	if c.s == "error" {
-		return errors.New("foo")
-	} else if c.s == "panic" {
-		panic("foopanic")
-	} else if c.s == "panicint" {
-		panic(1)
-	}
-	*result.(*string) = c.s
-	return nil
-}
-
-func (c *FooCommand) Fallback(ctx context.Context, result interface{}) error {
-	if c.f == "none" {
-		return cuirass.FallbackNotImplemented
-	} else if c.f == "error" {
-		return errors.New("fallbackerr")
-	} else if c.f == "panic" {
-		panic("fallpanic")
-	}
-	*result.(*string) = c.f
-	return nil
+func NewFooCommand(s, f string) *cuirass.Command {
+	return cuirass.NewCommand("FooCommand", func(ctx context.Context, r interface{}) error {
+		if s == "error" {
+			return errors.New("foo")
+		} else if s == "panic" {
+			panic("foopanic")
+		} else if s == "panicint" {
+			panic(1)
+		}
+		*r.(*string) = s
+		return nil
+	}).Fallback(func(ctx context.Context, r interface{}) error {
+		if f == "none" {
+			return cuirass.FallbackNotImplemented
+		} else if f == "error" {
+			return errors.New("fallbackerr")
+		} else if f == "panic" {
+			panic("fallpanic")
+		}
+		*r.(*string) = f
+		return nil
+	}).Build()
 }
 
 func newTestingExecutor() *cuirass.Executor {
@@ -67,7 +55,7 @@ func TestExecErrorWithFallback(t *testing.T) {
 	ex := newTestingExecutor()
 	var r string
 	assert.Nil(t, ex.Exec(ctx, cmd, &r))
-	assert.Equal(t, r, "fallback")
+	assert.Equal(t, "fallback", r)
 }
 
 func TestExecErrorWithFallbackPanic(t *testing.T) {
@@ -131,27 +119,15 @@ func TestExecFailuresTripCircuitBreaker(t *testing.T) {
 	assert.Equal(t, ex.Exec(ctx, cmd, &r), circuitbreaker.CircuitOpenError)
 }
 
-type TimeoutCommand struct{}
-
-func NewTimeoutCommand() *TimeoutCommand {
-	return &TimeoutCommand{}
-}
-
-func (c *TimeoutCommand) Name() string {
-	return "TimeoutCommand"
-}
-
-func (c *TimeoutCommand) Run(ctx context.Context, result interface{}) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(time.Second):
-		return nil
-	}
-}
-
-func (c *TimeoutCommand) Fallback(ctx context.Context, result interface{}) error {
-	return cuirass.FallbackNotImplemented
+func NewTimeoutCommand() *cuirass.Command {
+	return cuirass.NewCommand("FooCommand", func(ctx context.Context, r interface{}) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+			return nil
+		}
+	}).Build()
 }
 
 func TestExecTimesOut(t *testing.T) {

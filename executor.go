@@ -34,7 +34,7 @@ func NewExecutor(requestTimeout time.Duration) *Executor {
 // If command fails with an error or panics Fallback function with fallback logic
 // is executed. Every command execution is guarded by an internal circuit-breaker.
 // Panics are recovered and returned as errors.
-func (e *Executor) Exec(ctx context.Context, cmd Command, result interface{}) (err error) {
+func (e *Executor) Exec(ctx context.Context, cmd *Command, result interface{}) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = execFallback(ctx, cmd, result, r)
@@ -56,7 +56,7 @@ func (e *Executor) Exec(ctx context.Context, cmd Command, result interface{}) (e
 
 // executeFallback handles a fallback for a failed command.
 // Because a Fallback can panic too errors are recovered the same wasy as for Exec.
-func execFallback(ctx context.Context, cmd Command, result interface{}, r interface{}) (err error) {
+func execFallback(ctx context.Context, cmd *Command, result interface{}, r interface{}) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = panicToError(r)
@@ -85,7 +85,7 @@ func panicToError(r interface{}) (err error) {
 
 // getcircuitbreakerforcommand returns a circuit breaker for a command or constructs
 // a new one and returns it.
-func (e *Executor) getCircuitBreakerForCommand(cmd Command) *circuitbreaker.CircuitBreaker {
+func (e *Executor) getCircuitBreakerForCommand(cmd *Command) *circuitbreaker.CircuitBreaker {
 	if cb, ok := e.circuitBreakers.get(cmd.Name()); ok {
 		return cb
 	} else {
