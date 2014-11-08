@@ -3,23 +3,30 @@ package cuirass
 import (
 	"errors"
 	"sync"
+	"time"
+
+	"code.google.com/p/go.net/context"
 
 	"github.com/arjantop/cuirass/circuitbreaker"
 )
 
 var UnknownPanic = errors.New("Unknown panic")
 
+var DefaultRequestTimeout time.Duration = time.Second
+
 // Executor is a main service that knows how to execute commands and handle
 // their errors.
 // Executor is safe to be accessed by multiple threads.
 type Executor struct {
 	circuitBreakers cbMap
+	requestTimeout  time.Duration
 }
 
 // NewExecutor constructs a new empty executor.
-func NewExecutor() *Executor {
+func NewExecutor(requestTimeout time.Duration) *Executor {
 	return &Executor{
 		circuitBreakers: newCbMap(),
+		requestTimeout:  requestTimeout,
 	}
 }
 
@@ -27,37 +34,39 @@ func NewExecutor() *Executor {
 // If command fails with an error or panics Fallback function with fallback logic
 // is executed. Every command execution is guarded by an internal circuit-breaker.
 // Panics are recovered and returned as errors.
-func (e *Executor) Exec(cmd Command, result interface{}) (err error) {
+func (e *Executor) Exec(ctx context.Context, cmd Command, result interface{}) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = execFallback(cmd, result, r)
+			err = execFallback(ctx, cmd, result, r)
 		}
 	}()
+	ctx, cancel := context.WithTimeout(ctx, e.requestTimeout)
+	defer cancel()
 	cb := e.getCircuitBreakerForCommand(cmd)
 	// Execute the command in the context of its circuit-breaker.
 	err = cb.Do(func() error {
-		return cmd.Run(result)
+		return cmd.Run(ctx, result)
 	})
 	if err != nil {
 		// Panic with error and handle it the same as panic.
 		panic(err)
 	}
-	return nil
+	return
 }
 
 // executeFallback handles a fallback for a failed command.
 // Because a Fallback can panic too errors are recovered the same wasy as for Exec.
-func execFallback(cmd Command, result interface{}, r interface{}) (err error) {
+func execFallback(ctx context.Context, cmd Command, result interface{}, r interface{}) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = panicToError(r)
 		}
 	}()
-	err = cmd.Fallback(result)
+	err = cmd.Fallback(ctx, result)
 	if err != nil {
 		err = panicToError(r)
 	}
-	return err
+	return
 }
 
 // panicToError converts a panic value to a matching error value or a generic
@@ -71,7 +80,7 @@ func panicToError(r interface{}) (err error) {
 	default:
 		err = UnknownPanic
 	}
-	return err
+	return
 }
 
 // getcircuitbreakerforcommand returns a circuit breaker for a command or constructs
