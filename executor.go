@@ -36,12 +36,14 @@ func NewExecutor(requestTimeout time.Duration) *Executor {
 // is executed. Every command execution is guarded by an internal circuit-breaker.
 // Panics are recovered and returned as errors.
 func (e *Executor) Exec(ctx context.Context, cmd *Command, result interface{}) (err error) {
+	stats := newExecutionStats(time.Now())
 	defer func() {
 		if r := recover(); r != nil {
-			err = execFallback(ctx, cmd, result, r)
-		}
-		if logger := requestlog.FromContext(ctx); logger != nil {
-			logger.AddRequest(cmd.Name())
+			err = execFallback(ctx, cmd, stats, result, r)
+		} else {
+			// The request was successfully completed.
+			stats.addEvent(requestlog.Success)
+			logRequest(ctx, stats.toExecutionInfo(cmd.Name()))
 		}
 	}()
 	ctx, cancel := context.WithTimeout(ctx, e.requestTimeout)
@@ -58,19 +60,74 @@ func (e *Executor) Exec(ctx context.Context, cmd *Command, result interface{}) (
 	return
 }
 
+type executionStats struct {
+	startTime time.Time
+	events    []requestlog.ExecutionEvent
+}
+
+func newExecutionStats(startTime time.Time) executionStats {
+	return executionStats{
+		startTime: startTime,
+		events:    make([]requestlog.ExecutionEvent, 0),
+	}
+}
+
+func (e *executionStats) addEvent(event requestlog.ExecutionEvent) {
+	e.events = append(e.events, event)
+}
+
+func (e *executionStats) toExecutionInfo(commandName string) *requestlog.ExecutionInfo {
+	return requestlog.NewExecutionInfo(commandName, time.Since(e.startTime), e.events)
+}
+
+func logRequest(ctx context.Context, info *requestlog.ExecutionInfo) {
+	if logger := requestlog.FromContext(ctx); logger != nil {
+		logger.AddRequest(info)
+	}
+}
+
 // executeFallback handles a fallback for a failed command.
 // Because a Fallback can panic too errors are recovered the same wasy as for Exec.
-func execFallback(ctx context.Context, cmd *Command, result interface{}, r interface{}) (err error) {
+func execFallback(
+	ctx context.Context,
+	cmd *Command,
+	stats executionStats,
+	result interface{},
+	r interface{}) (err error) {
+
 	defer func() {
 		if r := recover(); r != nil {
+			if err != FallbackNotImplemented {
+				stats.addEvent(requestlog.FallbackFailure)
+			}
 			err = panicToError(r)
 		}
+		logRequest(ctx, stats.toExecutionInfo(cmd.Name()))
 	}()
+
+	addEventForRequest(&stats, r)
+
 	err = cmd.Fallback(ctx, result)
 	if err != nil {
-		err = panicToError(r)
+		panic(r)
 	}
+	stats.addEvent(requestlog.FallbackSuccess)
 	return
+}
+
+func addEventForRequest(stats *executionStats, r interface{}) {
+	switch x := r.(type) {
+	case error:
+		if x == context.DeadlineExceeded {
+			stats.addEvent(requestlog.Timeout)
+		} else if x == circuitbreaker.CircuitOpenError {
+			stats.addEvent(requestlog.ShortCircuited)
+		} else {
+			stats.addEvent(requestlog.Failure)
+		}
+	default:
+		stats.addEvent(requestlog.Failure)
+	}
 }
 
 // panicToError converts a panic value to a matching error value or a generic

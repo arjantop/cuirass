@@ -41,83 +41,143 @@ func newTestingExecutor() *cuirass.Executor {
 	return cuirass.NewExecutor(100 * time.Millisecond)
 }
 
-func TestExecSuccess(t *testing.T) {
+func TestExecSuccessNoLogging(t *testing.T) {
 	ctx := context.Background()
 	cmd := NewFooCommand("foo", "")
 	ex := newTestingExecutor()
 	var r string
 	assert.Nil(t, ex.Exec(ctx, cmd, &r))
-	assert.Equal(t, r, "foo")
+}
+
+func TestExecSuccess(t *testing.T) {
+	ctx := requestlog.WithRequestLog(context.Background())
+	cmd := NewFooCommand("foo", "")
+	ex := newTestingExecutor()
+	var r string
+	assert.Nil(t, ex.Exec(ctx, cmd, &r))
+	assert.Equal(t, "foo", r)
+	request := requestlog.FromContext(ctx).LastRequest()
+	assert.Equal(t, "FooCommand", request.CommandName())
+	assert.Equal(t, []requestlog.ExecutionEvent{requestlog.Success}, request.Events())
+
 }
 
 func TestExecErrorWithFallback(t *testing.T) {
-	ctx := context.Background()
+	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("error", "fallback")
 	ex := newTestingExecutor()
 	var r string
 	assert.Nil(t, ex.Exec(ctx, cmd, &r))
 	assert.Equal(t, "fallback", r)
+
+	request := requestlog.FromContext(ctx).LastRequest()
+	assert.Equal(t, "FooCommand", request.CommandName())
+	assert.Equal(t,
+		[]requestlog.ExecutionEvent{requestlog.Failure, requestlog.FallbackSuccess},
+		request.Events())
 }
 
 func TestExecErrorWithFallbackPanic(t *testing.T) {
-	ctx := context.Background()
+	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("error", "panic")
 	ex := newTestingExecutor()
 	var r string
 	assert.Equal(t, errors.New("fallpanic"), ex.Exec(ctx, cmd, &r))
+
+	request := requestlog.FromContext(ctx).LastRequest()
+	assert.Equal(t, "FooCommand", request.CommandName())
+	assert.Equal(t,
+		[]requestlog.ExecutionEvent{requestlog.Failure, requestlog.FallbackFailure},
+		request.Events())
 }
 
 func TestExecErrorWithoutFallback(t *testing.T) {
-	ctx := context.Background()
+	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("error", "none")
 	ex := newTestingExecutor()
 	var r string
-	assert.Equal(t, ex.Exec(ctx, cmd, &r), errors.New("foo"))
+	assert.Equal(t, errors.New("foo"), ex.Exec(ctx, cmd, &r))
+
+	request := requestlog.FromContext(ctx).LastRequest()
+	assert.Equal(t, "FooCommand", request.CommandName())
+	assert.Equal(t,
+		[]requestlog.ExecutionEvent{requestlog.Failure},
+		request.Events())
 }
 
 func TestExecErrorWithoutFallbackFailure(t *testing.T) {
-	ctx := context.Background()
+	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("error", "error")
 	ex := newTestingExecutor()
 	var r string
 	// The original error from Run is returned if Fallback fails too.
-	assert.Equal(t, ex.Exec(ctx, cmd, &r), errors.New("foo"))
+	assert.Equal(t, errors.New("foo"), ex.Exec(ctx, cmd, &r))
+
+	request := requestlog.FromContext(ctx).LastRequest()
+	assert.Equal(t, "FooCommand", request.CommandName())
+	assert.Equal(t,
+		[]requestlog.ExecutionEvent{requestlog.Failure, requestlog.FallbackFailure},
+		request.Events())
 }
 
 func TestExecPanicWithFallback(t *testing.T) {
-	ctx := context.Background()
+	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("panic", "fallback")
 	ex := newTestingExecutor()
 	var r string
 	assert.Nil(t, ex.Exec(ctx, cmd, &r))
-	assert.Equal(t, r, "fallback")
+	assert.Equal(t, "fallback", r)
+
+	request := requestlog.FromContext(ctx).LastRequest()
+	assert.Equal(t, "FooCommand", request.CommandName())
+	assert.Equal(t,
+		[]requestlog.ExecutionEvent{requestlog.Failure, requestlog.FallbackSuccess},
+		request.Events())
 }
 
 func TestExecPanicWithoutFallback(t *testing.T) {
-	ctx := context.Background()
+	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("panic", "none")
 	ex := newTestingExecutor()
 	var r string
-	assert.Equal(t, ex.Exec(ctx, cmd, &r), errors.New("foopanic"))
+	assert.Equal(t, errors.New("foopanic"), ex.Exec(ctx, cmd, &r))
+
+	request := requestlog.FromContext(ctx).LastRequest()
+	assert.Equal(t, "FooCommand", request.CommandName())
+	assert.Equal(t,
+		[]requestlog.ExecutionEvent{requestlog.Failure},
+		request.Events())
 }
 
 func TestExecIntPanicWithoutFallback(t *testing.T) {
-	ctx := context.Background()
+	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("panicint", "none")
 	ex := newTestingExecutor()
 	var r string
-	assert.Equal(t, ex.Exec(ctx, cmd, &r), cuirass.UnknownPanic)
+	assert.Equal(t, cuirass.UnknownPanic, ex.Exec(ctx, cmd, &r))
+
+	request := requestlog.FromContext(ctx).LastRequest()
+	assert.Equal(t, "FooCommand", request.CommandName())
+	assert.Equal(t,
+		[]requestlog.ExecutionEvent{requestlog.Failure},
+		request.Events())
 }
 
 func TestExecFailuresTripCircuitBreaker(t *testing.T) {
-	ctx := context.Background()
+	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("error", "none")
 	ex := newTestingExecutor()
 	var r string
 	for i := 0; i < int(circuitbreaker.DefaultRequestVolumeThreshold); i++ {
-		assert.Equal(t, ex.Exec(ctx, cmd, &r), errors.New("foo"))
+		assert.Equal(t, errors.New("foo"), ex.Exec(ctx, cmd, &r))
 	}
-	assert.Equal(t, ex.Exec(ctx, cmd, &r), circuitbreaker.CircuitOpenError)
+	assert.Equal(t, circuitbreaker.CircuitOpenError, ex.Exec(ctx, cmd, &r))
+
+	request := requestlog.FromContext(ctx).LastRequest()
+	assert.Equal(t, "FooCommand", request.CommandName())
+	assert.Equal(t,
+		[]requestlog.ExecutionEvent{requestlog.ShortCircuited},
+		request.Events())
 }
 
 func TestExecRequestLogging(t *testing.T) {
@@ -140,7 +200,7 @@ func TestExecRequestLogging(t *testing.T) {
 }
 
 func NewTimeoutCommand() *cuirass.Command {
-	return cuirass.NewCommand("FooCommand", func(ctx context.Context, r interface{}) error {
+	return cuirass.NewCommand("TimeoutCommand", func(ctx context.Context, r interface{}) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -151,9 +211,15 @@ func NewTimeoutCommand() *cuirass.Command {
 }
 
 func TestExecTimesOut(t *testing.T) {
-	ctx := context.Background()
+	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewTimeoutCommand()
 	ex := cuirass.NewExecutor(time.Millisecond)
 	var r string
-	assert.Equal(t, ex.Exec(ctx, cmd, &r), context.DeadlineExceeded)
+	assert.Equal(t, context.DeadlineExceeded, ex.Exec(ctx, cmd, &r))
+
+	request := requestlog.FromContext(ctx).LastRequest()
+	assert.Equal(t, "TimeoutCommand", request.CommandName())
+	assert.Equal(t,
+		[]requestlog.ExecutionEvent{requestlog.Timeout},
+		request.Events())
 }
