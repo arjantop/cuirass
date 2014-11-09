@@ -9,6 +9,7 @@ import (
 
 	"github.com/arjantop/cuirass"
 	"github.com/arjantop/cuirass/circuitbreaker"
+	"github.com/arjantop/cuirass/requestlog"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -117,6 +118,25 @@ func TestExecFailuresTripCircuitBreaker(t *testing.T) {
 		assert.Equal(t, ex.Exec(ctx, cmd, &r), errors.New("foo"))
 	}
 	assert.Equal(t, ex.Exec(ctx, cmd, &r), circuitbreaker.CircuitOpenError)
+}
+
+func TestExecRequestLogging(t *testing.T) {
+	ctx := requestlog.WithRequestLog(context.Background())
+	cmd := NewFooCommand("foo", "")
+	ex := newTestingExecutor()
+	var r string
+
+	ex.Exec(ctx, cmd, &r)
+	log := requestlog.FromContext(ctx)
+	assert.Equal(t, 1, log.Size())
+
+	cmd2 := NewFooCommand("panic", "none")
+	ex.Exec(ctx, cmd2, &r)
+	assert.Equal(t, 2, log.Size())
+
+	cmd3 := NewFooCommand("error", "panic")
+	ex.Exec(ctx, cmd3, &r)
+	assert.Equal(t, 3, log.Size())
 }
 
 func NewTimeoutCommand() *cuirass.Command {

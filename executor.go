@@ -8,6 +8,7 @@ import (
 	"code.google.com/p/go.net/context"
 
 	"github.com/arjantop/cuirass/circuitbreaker"
+	"github.com/arjantop/cuirass/requestlog"
 )
 
 var UnknownPanic = errors.New("Unknown panic")
@@ -38,6 +39,9 @@ func (e *Executor) Exec(ctx context.Context, cmd *Command, result interface{}) (
 	defer func() {
 		if r := recover(); r != nil {
 			err = execFallback(ctx, cmd, result, r)
+		}
+		if logger := requestlog.FromContext(ctx); logger != nil {
+			logger.AddRequest(cmd.Name())
 		}
 	}()
 	ctx, cancel := context.WithTimeout(ctx, e.requestTimeout)
