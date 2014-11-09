@@ -7,19 +7,34 @@ import (
 	"time"
 )
 
+// ExecutionEvent is an event that represents success or failure of different
+// stages of command execution.
 type ExecutionEvent byte
 
 const (
+	// Success event happens when a command was successfully executed.
 	Success ExecutionEvent = iota
+	// Failure event happens when a command returned and error or panicked
+	// when executing.
 	Failure
+	// Timeout event happens when a command took too long to execute.
 	Timeout
+	// ShortCircuited event happens when the circuit breaker for the command
+	// is closed.
 	ShortCircuited
+	// ResponseFromCache event happens when the response for the command came
+	// from previously executed command cache.
 	ResponseFromCache
 
+	// FallbackSuccess happens when the fallback logic of a command executed
+	// successfully.
 	FallbackSuccess
+	// FallbakcFailure event happens when the fallback logic returned and error
+	// or panicked while executing.
 	FallbackFailure
 )
 
+// String returns a string representation of an execution event.
 func (e ExecutionEvent) String() (s string) {
 	switch e {
 	case Success:
@@ -40,12 +55,15 @@ func (e ExecutionEvent) String() (s string) {
 	return
 }
 
+// ExecutionInfo holds the execution duration and events that happened during
+// command execution.
 type ExecutionInfo struct {
 	commandName   string
 	executionTime time.Duration
 	events        []ExecutionEvent
 }
 
+// NewExecutionInfo construct a new ExecutionInfo for command name.
 func NewExecutionInfo(
 	commandName string,
 	executionTime time.Duration,
@@ -58,10 +76,12 @@ func NewExecutionInfo(
 	}
 }
 
+// CommandName returns a command name that this execution info belongs to.
 func (e *ExecutionInfo) CommandName() string {
 	return e.commandName
 }
 
+// ExecutionTime returns the duration that was spent executing the command.
 func (e *ExecutionInfo) ExecutionTime() time.Duration {
 	// If for some reason we have negative execution time correct it to minimum
 	// so we can always assume that execution time > 0.
@@ -71,6 +91,7 @@ func (e *ExecutionInfo) ExecutionTime() time.Duration {
 	return e.executionTime
 }
 
+// Events returns a slice of events that happend in the order that they occurred.
 func (e *ExecutionInfo) Events() []ExecutionEvent {
 	r := make([]ExecutionEvent, len(e.events))
 	// Make a copy of the event array so users of the api canno change the underlying
@@ -79,6 +100,10 @@ func (e *ExecutionInfo) Events() []ExecutionEvent {
 	return r
 }
 
+// canCollapseWith returns true if the current command can be collapsed with
+// the other one when displaying the log.
+// Commands are collapsable if the command name and events match. Execution time
+// does not matter.
 func (e *ExecutionInfo) canCollapseWith(other *ExecutionInfo) bool {
 	if other == nil {
 		return false
@@ -87,6 +112,7 @@ func (e *ExecutionInfo) canCollapseWith(other *ExecutionInfo) bool {
 	return e.commandName == other.commandName && eventsEqual(e.events, other.events)
 }
 
+// eventsEqual returns true if both event logs are the same.
 func eventsEqual(ev1 []ExecutionEvent, ev2 []ExecutionEvent) bool {
 	if len(ev1) != len(ev2) {
 		return false
@@ -100,11 +126,15 @@ func eventsEqual(ev1 []ExecutionEvent, ev2 []ExecutionEvent) bool {
 	return true
 }
 
+// RequestLog keeps a history of request execution information in the order that requests
+// occurred.
+// It is safe to access RequestLog from multiple threads simultaneously.
 type RequestLog struct {
 	executedRequests     []*ExecutionInfo
 	executedRequestsLock *sync.RWMutex
 }
 
+// newRequestLog constructs a new empty request log.
 func newRequestLog() *RequestLog {
 	return &RequestLog{
 		executedRequests:     make([]*ExecutionInfo, 0),
@@ -112,24 +142,29 @@ func newRequestLog() *RequestLog {
 	}
 }
 
-func (l *RequestLog) AddRequest(info *ExecutionInfo) {
+// AddExecutionInfo add the execution of executed command to the request log.
+func (l *RequestLog) AddExecutionInfo(info *ExecutionInfo) {
 	l.executedRequestsLock.Lock()
 	defer l.executedRequestsLock.Unlock()
 	l.executedRequests = append(l.executedRequests, info)
 }
 
+// Size returns the number of request logs currently in the logger.
 func (l *RequestLog) Size() int {
 	l.executedRequestsLock.RLock()
 	defer l.executedRequestsLock.RUnlock()
 	return len(l.executedRequests)
 }
 
+// LastRequest returns the execution info of the latest request added to the log.
 func (l *RequestLog) LastRequest() *ExecutionInfo {
 	l.executedRequestsLock.RLock()
 	defer l.executedRequestsLock.RUnlock()
 	return l.executedRequests[len(l.executedRequests)-1]
 }
 
+// String returns a nice string representation of the commands in the log.
+// Used for command execution logging.
 func (l *RequestLog) String() string {
 	var b bytes.Buffer
 	var lastInfo *ExecutionInfo
@@ -159,6 +194,7 @@ func (l *RequestLog) String() string {
 	return b.String()
 }
 
+// writeCommand writes a command execution info to the string buffer.
 func writeCommand(b *bytes.Buffer, info *ExecutionInfo, count int) {
 	b.WriteString(info.CommandName())
 	b.WriteString("[")

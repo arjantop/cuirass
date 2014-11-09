@@ -10,6 +10,6 @@ import (
 
 func TestFromContext(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
-	requestlog.FromContext(ctx).AddRequest(nil)
+	requestlog.FromContext(ctx).AddExecutionInfo(nil)
 	assert.Equal(t, 1, requestlog.FromContext(ctx).Size())
 }
