@@ -19,6 +19,7 @@ type CommandFunc func(ctx context.Context) (interface{}, error)
 type Command struct {
 	name          string
 	run, fallback CommandFunc
+	cacheKey      string
 }
 
 // Name returns the name of the command.
@@ -36,10 +37,19 @@ func (c *Command) Fallback(ctx context.Context) (interface{}, error) {
 	return c.fallback(ctx)
 }
 
+func (c *Command) CanBeCached() bool {
+	return c.cacheKey != ""
+}
+
+func (c *Command) CacheKey() string {
+	return c.cacheKey
+}
+
 // CommandBuilder is a helper used for constructing new Commands.
 type CommandBuilder struct {
 	name          string
 	run, fallback CommandFunc
+	cacheKey      string
 }
 
 // NewCommand constructs a new CommandBuilder with minimal required command
@@ -57,19 +67,24 @@ func (b *CommandBuilder) Fallback(fallback CommandFunc) *CommandBuilder {
 	return b
 }
 
+func (b *CommandBuilder) CacheKey(cacheKey string) *CommandBuilder {
+	b.cacheKey = cacheKey
+	return b
+}
+
 // Build builds a command with all configured parameters.
 func (b *CommandBuilder) Build() *Command {
 	cmd := &Command{
-		name: b.name,
-		run:  b.run,
+		name:     b.name,
+		run:      b.run,
+		cacheKey: b.cacheKey,
+		fallback: b.fallback,
 	}
 	if b.fallback == nil {
 		// If no fallback is configured use a default fallback returning an error.
 		cmd.fallback = func(ctx context.Context) (interface{}, error) {
 			return nil, FallbackNotImplemented
 		}
-	} else {
-		cmd.fallback = b.fallback
 	}
 	return cmd
 }
