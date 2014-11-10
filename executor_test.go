@@ -9,12 +9,13 @@ import (
 
 	"github.com/arjantop/cuirass"
 	"github.com/arjantop/cuirass/circuitbreaker"
+	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
 	"github.com/stretchr/testify/assert"
 )
 
 func NewFooCommand(s, f string) *cuirass.Command {
-	return cuirass.NewCommand("FooCommand", func(ctx context.Context) (interface{}, error) {
+	b := cuirass.NewCommand("FooCommand", func(ctx context.Context) (interface{}, error) {
 		if s == "error" {
 			return nil, errors.New("foo")
 		} else if s == "panic" {
@@ -32,7 +33,8 @@ func NewFooCommand(s, f string) *cuirass.Command {
 			panic("fallpanic")
 		}
 		return f, nil
-	}).Build()
+	})
+	return b.Build()
 }
 
 func newTestingExecutor() *cuirass.Executor {
@@ -220,4 +222,117 @@ func TestExecTimesOut(t *testing.T) {
 	assert.Equal(t,
 		[]requestlog.ExecutionEvent{requestlog.Timeout},
 		request.Events())
+}
+
+func NewCachableCommand(s, f, key string) *cuirass.Command {
+	return cuirass.NewCommand("FooCommand", func(ctx context.Context) (interface{}, error) {
+		if s == "error" {
+			return nil, errors.New("foo")
+		}
+		return s, nil
+	}).Fallback(func(ctx context.Context) (interface{}, error) {
+		if f == "none" {
+			return nil, cuirass.FallbackNotImplemented
+		}
+		return f, nil
+	}).CacheKey(key).Build()
+}
+
+func TestExecSuccessCacheableCommandIsCached(t *testing.T) {
+	ctx := requestcache.WithRequestCache(context.Background())
+	ex := newTestingExecutor()
+
+	cmd := NewCachableCommand("foo", "", "a")
+	r, err := ex.Exec(ctx, cmd)
+	assert.Nil(t, err)
+	assert.Equal(t, "foo", r)
+
+	// This execution should return the value "foo" from cache instead of returning
+	// the value "bar" that woul be returned in the case of evaluation the command.
+	cmd2 := NewCachableCommand("bar", "", "a")
+	r, err = ex.Exec(ctx, cmd2)
+	assert.Nil(t, err)
+	assert.Equal(t, "foo", r)
+
+	// This command has a different cache key so it should be evaluated.
+	cmd3 := NewCachableCommand("baz", "", "b")
+	r, err = ex.Exec(ctx, cmd3)
+	assert.Nil(t, err)
+	assert.Equal(t, "baz", r)
+}
+
+func TestExecFallbackCacheableCommandIsCached(t *testing.T) {
+	ctx := requestcache.WithRequestCache(context.Background())
+	ex := newTestingExecutor()
+
+	cmd := NewCachableCommand("error", "foo", "a")
+	r, err := ex.Exec(ctx, cmd)
+	assert.Nil(t, err)
+	assert.Equal(t, "foo", r)
+
+	// The fallback value of previous command execution should be returned.
+	cmd2 := NewCachableCommand("bar", "", "a")
+	r, err = ex.Exec(ctx, cmd2)
+	assert.Nil(t, err)
+	assert.Equal(t, "foo", r)
+}
+
+func TestExecContextLocalCaching(t *testing.T) {
+	ctx1 := requestcache.WithRequestCache(context.Background())
+	ex := newTestingExecutor()
+
+	cmd := NewCachableCommand("foo", "", "a")
+	_, err := ex.Exec(ctx1, cmd)
+	assert.Nil(t, err)
+
+	ctx2 := requestcache.WithRequestCache(context.Background())
+
+	// Caching is context local.
+	cmd2 := NewCachableCommand("bar", "", "a")
+	r, err := ex.Exec(ctx2, cmd2)
+	assert.Nil(t, err)
+	assert.Equal(t, "bar", r)
+}
+
+func TestExecCachingOnlyInCacheContext(t *testing.T) {
+	ctx := context.Background()
+	ex := newTestingExecutor()
+
+	cmd := NewCachableCommand("foo", "", "a")
+	_, err := ex.Exec(ctx, cmd)
+	assert.Nil(t, err)
+
+	cmd2 := NewCachableCommand("bar", "", "a")
+	r, err := ex.Exec(ctx, cmd2)
+	assert.Nil(t, err)
+	assert.Equal(t, "bar", r)
+}
+
+func TestExecFailureCacheableCommandIsCached(t *testing.T) {
+	ctx := requestcache.WithRequestCache(context.Background())
+	ex := newTestingExecutor()
+
+	cmd := NewCachableCommand("error", "none", "a")
+	_, err := ex.Exec(ctx, cmd)
+	assert.Equal(t, errors.New("foo"), err)
+
+	// The error of previous command execution should be returned.
+	cmd2 := NewCachableCommand("bar", "", "a")
+	_, err = ex.Exec(ctx, cmd2)
+	assert.Equal(t, errors.New("foo"), err)
+}
+
+func TestExecNonCacheableCommandNotCached(t *testing.T) {
+	ctx := requestcache.WithRequestCache(context.Background())
+	ex := newTestingExecutor()
+
+	cmd := NewFooCommand("foo", "")
+	r, err := ex.Exec(ctx, cmd)
+	assert.Nil(t, err)
+	assert.Equal(t, "foo", r)
+
+	cmd2 := NewFooCommand("bar", "")
+	r, err = ex.Exec(ctx, cmd2)
+	assert.Nil(t, err)
+	assert.Equal(t, "bar", r)
 }

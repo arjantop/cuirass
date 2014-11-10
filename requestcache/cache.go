@@ -3,7 +3,6 @@ package requestcache
 import (
 	"sync"
 
-	"github.com/arjantop/cuirass"
 	"github.com/arjantop/cuirass/requestlog"
 )
 
@@ -12,8 +11,8 @@ type cacheKey struct {
 	key         string
 }
 
-func keyForCommand(cmd *cuirass.Command) cacheKey {
-	return cacheKey{cmd.Name(), cmd.CacheKey()}
+func newCacheKey(name, key string) cacheKey {
+	return cacheKey{name, key}
 }
 
 type ExecutedCommand struct {
@@ -42,10 +41,10 @@ func newRequestCache() *RequestCache {
 	}
 }
 
-func (c *RequestCache) Get(cmd *cuirass.Command) *ExecutedCommand {
+func (c *RequestCache) Get(name, key string) *ExecutedCommand {
 	c.cacheLock.RLock()
 	defer c.cacheLock.RUnlock()
-	r := c.cache[keyForCommand(cmd)]
+	r := c.cache[newCacheKey(name, key)]
 	if r != nil {
 		return &ExecutedCommand{
 			response: r.response,
@@ -57,14 +56,10 @@ func (c *RequestCache) Get(cmd *cuirass.Command) *ExecutedCommand {
 }
 
 func (c *RequestCache) Add(
-	cmd *cuirass.Command,
+	name, key string,
 	info *requestlog.ExecutionInfo,
 	r interface{},
 	err error) bool {
-
-	if !cmd.CanBeCached() {
-		return false
-	}
 
 	cachedEvents := append(info.Events(), requestlog.ResponseFromCache)
 	// Execution time of cached commands is always 0ms.
@@ -73,7 +68,7 @@ func (c *RequestCache) Add(
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
 
-	c.cache[keyForCommand(cmd)] = &ExecutedCommand{
+	c.cache[newCacheKey(name, key)] = &ExecutedCommand{
 		response: r,
 		err:      err,
 		info:     cachedInfo,

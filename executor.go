@@ -8,6 +8,7 @@ import (
 	"code.google.com/p/go.net/context"
 
 	"github.com/arjantop/cuirass/circuitbreaker"
+	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
 )
 
@@ -45,7 +46,19 @@ func (e *Executor) Exec(ctx context.Context, cmd *Command) (result interface{}, 
 			stats.addEvent(requestlog.Success)
 			logRequest(ctx, stats.toExecutionInfo(cmd.Name()))
 		}
+		if cache := requestcache.FromContext(ctx); cmd.IsCacheable() && cache != nil {
+			cache.Add(cmd.Name(), cmd.CacheKey(), stats.toExecutionInfo(cmd.Name()), result, err)
+		}
 	}()
+
+	if cache := requestcache.FromContext(ctx); cmd.IsCacheable() && cache != nil {
+		if ec := cache.Get(cmd.Name(), cmd.CacheKey()); ec != nil {
+			// Return the cached return values straight from cache.
+			result, err = ec.Response()
+			return
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, e.requestTimeout)
 	defer cancel()
 	cb := e.getCircuitBreakerForCommand(cmd)
@@ -96,7 +109,7 @@ func logRequest(ctx context.Context, info *requestlog.ExecutionInfo) {
 }
 
 // executeFallback handles a fallback for a failed command.
-// Because a Fallback can panic too errors are recovered the same wasy as for Exec.
+// Because a Fallback can panic too errors are recovered the same way as for Exec.
 func execFallback(
 	ctx context.Context,
 	cmd *Command,

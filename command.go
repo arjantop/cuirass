@@ -37,7 +37,7 @@ func (c *Command) Fallback(ctx context.Context) (interface{}, error) {
 	return c.fallback(ctx)
 }
 
-func (c *Command) CanBeCached() bool {
+func (c *Command) IsCacheable() bool {
 	return c.cacheKey != ""
 }
 
