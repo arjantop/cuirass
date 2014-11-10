@@ -35,11 +35,11 @@ func NewExecutor(requestTimeout time.Duration) *Executor {
 // If command fails with an error or panics Fallback function with fallback logic
 // is executed. Every command execution is guarded by an internal circuit-breaker.
 // Panics are recovered and returned as errors.
-func (e *Executor) Exec(ctx context.Context, cmd *Command, result interface{}) (err error) {
+func (e *Executor) Exec(ctx context.Context, cmd *Command) (result interface{}, err error) {
 	stats := newExecutionStats(time.Now())
 	defer func() {
 		if r := recover(); r != nil {
-			err = execFallback(ctx, cmd, stats, result, r)
+			result, err = execFallback(ctx, cmd, stats, r)
 		} else {
 			// The request was successfully completed.
 			stats.addEvent(requestlog.Success)
@@ -51,7 +51,9 @@ func (e *Executor) Exec(ctx context.Context, cmd *Command, result interface{}) (
 	cb := e.getCircuitBreakerForCommand(cmd)
 	// Execute the command in the context of its circuit-breaker.
 	err = cb.Do(func() error {
-		return cmd.Run(ctx, result)
+		rr, rerr := cmd.Run(ctx)
+		result = rr
+		return rerr
 	})
 	if err != nil {
 		// Panic with error and handle it the same as panic.
@@ -99,8 +101,7 @@ func execFallback(
 	ctx context.Context,
 	cmd *Command,
 	stats executionStats,
-	result interface{},
-	r interface{}) (err error) {
+	r interface{}) (result interface{}, err error) {
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -115,7 +116,7 @@ func execFallback(
 
 	addEventForRequest(&stats, r)
 
-	err = cmd.Fallback(ctx, result)
+	result, err = cmd.Fallback(ctx)
 	if err != nil {
 		panic(r)
 	}

@@ -12,7 +12,7 @@ var FallbackNotImplemented = errors.New("Fallback not implemented")
 
 // A CommandFunc is a function that contains the primary or fallback logic
 // for the command.
-type CommandFunc func(ctx context.Context, result interface{}) error
+type CommandFunc func(ctx context.Context) (interface{}, error)
 
 // Command is a wrapper for a code that requires latency and fault tolerance
 // (typically service call over the network).
@@ -27,13 +27,13 @@ func (c *Command) Name() string {
 }
 
 // Run executes a primary function to fetch a result.
-func (c *Command) Run(ctx context.Context, r interface{}) error {
-	return c.run(ctx, r)
+func (c *Command) Run(ctx context.Context) (interface{}, error) {
+	return c.run(ctx)
 }
 
 // Fallback executes the fallback logic when primary function fails.
-func (c *Command) Fallback(ctx context.Context, r interface{}) error {
-	return c.fallback(ctx, r)
+func (c *Command) Fallback(ctx context.Context) (interface{}, error) {
+	return c.fallback(ctx)
 }
 
 // CommandBuilder is a helper used for constructing new Commands.
@@ -65,8 +65,8 @@ func (b *CommandBuilder) Build() *Command {
 	}
 	if b.fallback == nil {
 		// If no fallback is configured use a default fallback returning an error.
-		cmd.fallback = func(ctx context.Context, r interface{}) error {
-			return FallbackNotImplemented
+		cmd.fallback = func(ctx context.Context) (interface{}, error) {
+			return nil, FallbackNotImplemented
 		}
 	} else {
 		cmd.fallback = b.fallback
