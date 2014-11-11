@@ -14,7 +14,7 @@ func TestFromContext(t *testing.T) {
 	cache := requestcache.FromContext(ctx)
 
 	info := requestlog.NewExecutionInfo("Cmd", 0, []requestlog.ExecutionEvent{})
-	assert.True(t, cache.Add("Cmd", "b", info, "", nil))
+	cache.Add("Cmd", "b", info, "", nil)
 
 	// The same instance of cache should be returned.
 	cache2 := requestcache.FromContext(ctx)

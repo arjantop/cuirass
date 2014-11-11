@@ -37,10 +37,12 @@ func (c *Command) Fallback(ctx context.Context) (interface{}, error) {
 	return c.fallback(ctx)
 }
 
+// IsCacheable returns true id the response of the command execution can be cached.
 func (c *Command) IsCacheable() bool {
 	return c.cacheKey != ""
 }
 
+// CacheKey returns a key used for request caching.
 func (c *Command) CacheKey() string {
 	return c.cacheKey
 }
@@ -67,6 +69,9 @@ func (b *CommandBuilder) Fallback(fallback CommandFunc) *CommandBuilder {
 	return b
 }
 
+// CacheKey sets a cache key to the command being build. This means that the
+// command response can be cached and reused for the execution of the same command
+// with the same key.
 func (b *CommandBuilder) CacheKey(cacheKey string) *CommandBuilder {
 	b.cacheKey = cacheKey
 	return b

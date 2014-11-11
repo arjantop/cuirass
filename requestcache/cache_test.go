@@ -13,7 +13,7 @@ func TestAddRequestSuccess(t *testing.T) {
 	cache := newRequestCache()
 	events := []requestlog.ExecutionEvent{requestlog.Success}
 	info := requestlog.NewExecutionInfo("Cached", 10*time.Millisecond, events)
-	assert.True(t, cache.Add("Cached", "a", info, "abc", nil))
+	cache.Add("Cached", "a", info, "abc", nil)
 
 	// Request should now be retrieved from cache.
 	ec := cache.Get("Cached", "a")
@@ -35,7 +35,7 @@ func TestAddRequestFailure(t *testing.T) {
 	cachedError := errors.New("cached")
 	events := []requestlog.ExecutionEvent{requestlog.Success}
 	info := requestlog.NewExecutionInfo("Cached", 0, events)
-	assert.True(t, cache.Add("Cached", "a", info, "", cachedError))
+	cache.Add("Cached", "a", info, "", cachedError)
 
 	// Request should now be retrieved from cache.
 	ec := cache.Get("Cached", "a")
