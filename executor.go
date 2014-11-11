@@ -8,6 +8,7 @@ import (
 	"code.google.com/p/go.net/context"
 
 	"github.com/arjantop/cuirass/circuitbreaker"
+	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
 )
 
@@ -35,23 +36,37 @@ func NewExecutor(requestTimeout time.Duration) *Executor {
 // If command fails with an error or panics Fallback function with fallback logic
 // is executed. Every command execution is guarded by an internal circuit-breaker.
 // Panics are recovered and returned as errors.
-func (e *Executor) Exec(ctx context.Context, cmd *Command, result interface{}) (err error) {
+func (e *Executor) Exec(ctx context.Context, cmd *Command) (result interface{}, err error) {
 	stats := newExecutionStats(time.Now())
 	defer func() {
 		if r := recover(); r != nil {
-			err = execFallback(ctx, cmd, stats, result, r)
+			result, err = execFallback(ctx, cmd, stats, r)
 		} else {
 			// The request was successfully completed.
 			stats.addEvent(requestlog.Success)
 			logRequest(ctx, stats.toExecutionInfo(cmd.Name()))
 		}
+		if cache := requestcache.FromContext(ctx); cmd.IsCacheable() && cache != nil {
+			cache.Add(cmd.Name(), cmd.CacheKey(), stats.toExecutionInfo(cmd.Name()), result, err)
+		}
 	}()
+
+	if cache := requestcache.FromContext(ctx); cmd.IsCacheable() && cache != nil {
+		if ec := cache.Get(cmd.Name(), cmd.CacheKey()); ec != nil {
+			// Return the cached return values straight from cache.
+			result, err = ec.Response()
+			return
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, e.requestTimeout)
 	defer cancel()
 	cb := e.getCircuitBreakerForCommand(cmd)
 	// Execute the command in the context of its circuit-breaker.
 	err = cb.Do(func() error {
-		return cmd.Run(ctx, result)
+		rr, rerr := cmd.Run(ctx)
+		result = rr
+		return rerr
 	})
 	if err != nil {
 		// Panic with error and handle it the same as panic.
@@ -94,13 +109,12 @@ func logRequest(ctx context.Context, info *requestlog.ExecutionInfo) {
 }
 
 // executeFallback handles a fallback for a failed command.
-// Because a Fallback can panic too errors are recovered the same wasy as for Exec.
+// Because a Fallback can panic too errors are recovered the same way as for Exec.
 func execFallback(
 	ctx context.Context,
 	cmd *Command,
 	stats executionStats,
-	result interface{},
-	r interface{}) (err error) {
+	r interface{}) (result interface{}, err error) {
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -115,7 +129,7 @@ func execFallback(
 
 	addEventForRequest(&stats, r)
 
-	err = cmd.Fallback(ctx, result)
+	result, err = cmd.Fallback(ctx)
 	if err != nil {
 		panic(r)
 	}
