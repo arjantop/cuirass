@@ -58,3 +58,8 @@ func TestExecutionInfoExecutionTimeNegative(t *testing.T) {
 	info := NewExecutionInfo("Foo", -10*time.Millisecond, []ExecutionEvent{Success})
 	assert.Equal(t, 0, info.ExecutionTime())
 }
+
+func TestStringEmptyRequestLog(t *testing.T) {
+	logger := newRequestLog()
+	assert.Equal(t, "", logger.String())
+}

@@ -190,7 +190,9 @@ func (l *RequestLog) String() string {
 	if !first {
 		b.WriteString(", ")
 	}
-	writeCommand(&b, lastInfo, commandCount)
+	if lastInfo != nil {
+		writeCommand(&b, lastInfo, commandCount)
+	}
 	return b.String()
 }
 
