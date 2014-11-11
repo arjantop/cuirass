@@ -239,7 +239,7 @@ func NewCachableCommand(s, f, key string) *cuirass.Command {
 }
 
 func TestExecSuccessCacheableCommandIsCached(t *testing.T) {
-	ctx := requestcache.WithRequestCache(context.Background())
+	ctx := requestlog.WithRequestLog(requestcache.WithRequestCache(context.Background()))
 	ex := newTestingExecutor()
 
 	cmd := NewCachableCommand("foo", "", "a")
@@ -253,6 +253,13 @@ func TestExecSuccessCacheableCommandIsCached(t *testing.T) {
 	r, err = ex.Exec(ctx, cmd2)
 	assert.Nil(t, err)
 	assert.Equal(t, "foo", r)
+
+	request := requestlog.FromContext(ctx).LastRequest()
+	assert.Equal(t, "FooCommand", request.CommandName())
+	assert.Equal(t, 0, request.ExecutionTime())
+	assert.Equal(t,
+		[]requestlog.ExecutionEvent{requestlog.Success, requestlog.ResponseFromCache},
+		request.Events())
 
 	// This command has a different cache key so it should be evaluated.
 	cmd3 := NewCachableCommand("baz", "", "b")

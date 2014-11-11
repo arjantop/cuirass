@@ -37,11 +37,12 @@ func NewExecutor(requestTimeout time.Duration) *Executor {
 // is executed. Every command execution is guarded by an internal circuit-breaker.
 // Panics are recovered and returned as errors.
 func (e *Executor) Exec(ctx context.Context, cmd *Command) (result interface{}, err error) {
+	var responseFromCache bool
 	stats := newExecutionStats(time.Now())
 	defer func() {
 		if r := recover(); r != nil {
 			result, err = execFallback(ctx, cmd, stats, r)
-		} else {
+		} else if !responseFromCache {
 			// The request was successfully completed.
 			stats.addEvent(requestlog.Success)
 			logRequest(ctx, stats.toExecutionInfo(cmd.Name()))
@@ -55,6 +56,9 @@ func (e *Executor) Exec(ctx context.Context, cmd *Command) (result interface{}, 
 		if ec := cache.Get(cmd.Name(), cmd.CacheKey()); ec != nil {
 			// Return the cached return values straight from cache.
 			result, err = ec.Response()
+			// Mark that the response came from cache and we already did the logging.
+			responseFromCache = true
+			logRequest(ctx, ec.ExecutionInfo())
 			return
 		}
 	}
