@@ -29,9 +29,11 @@ func TestRequestStringCollapsing(t *testing.T) {
 	logger2.AddExecutionInfo(NewExecutionInfo(commands[1], 10*time.Millisecond, []ExecutionEvent{Success}))
 	logger2.AddExecutionInfo(NewExecutionInfo(commands[0], 11*time.Millisecond, []ExecutionEvent{Success}))
 	logger2.AddExecutionInfo(NewExecutionInfo(commands[0], 2*time.Millisecond, []ExecutionEvent{Success}))
+	// All commands executions will be aggregated, not just consecutive ones.
+	logger2.AddExecutionInfo(NewExecutionInfo(commands[2], 1*time.Millisecond, []ExecutionEvent{Success}))
 	logger2.AddExecutionInfo(NewExecutionInfo(commands[0], 8*time.Millisecond, []ExecutionEvent{Success}))
 	// Execution times of collapsed commands are summed.
-	assert.Equal(t, "Bar[SUCCESS][10ms], Foo[SUCCESS][21ms]x3", logger2.String())
+	assert.Equal(t, "Bar[SUCCESS][10ms], Foo[SUCCESS][21ms]x3, Baz[SUCCESS][1ms]", logger2.String())
 }
 
 func TestStringMultipleEvents(t *testing.T) {

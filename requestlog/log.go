@@ -100,32 +100,6 @@ func (e *ExecutionInfo) Events() []ExecutionEvent {
 	return r
 }
 
-// canCollapseWith returns true if the current command can be collapsed with
-// the other one when displaying the log.
-// Commands are collapsable if the command name and events match. Execution time
-// does not matter.
-func (e *ExecutionInfo) canCollapseWith(other *ExecutionInfo) bool {
-	if other == nil {
-		return false
-	}
-	// Everything except execution must be equal to allow collapsing when converting to string.
-	return e.commandName == other.commandName && eventsEqual(e.events, other.events)
-}
-
-// eventsEqual returns true if both event logs are the same.
-func eventsEqual(ev1 []ExecutionEvent, ev2 []ExecutionEvent) bool {
-	if len(ev1) != len(ev2) {
-		return false
-	}
-	for i, e1 := range ev1 {
-		e2 := ev2[i]
-		if e1 != e2 {
-			return false
-		}
-	}
-	return true
-}
-
 // RequestLog keeps a history of request execution information in the order that requests
 // occurred.
 // It is safe to access RequestLog from multiple threads simultaneously.
@@ -167,37 +141,48 @@ func (l *RequestLog) LastRequest() *ExecutionInfo {
 // Used for command execution logging.
 func (l *RequestLog) String() string {
 	var b bytes.Buffer
-	var lastInfo *ExecutionInfo
-	commandCount := 0
-	first := true
+	commandOrder := make([]string, 0)
+	aggregatedCommands := make(map[string]*aggregatedCommand)
+
 	// Because range iterates over a copy of the slice we need no locks here.
 	for _, info := range l.executedRequests {
-		if !info.canCollapseWith(lastInfo) {
-			if lastInfo != nil {
-				if !first {
-					b.WriteString(", ")
-				}
-				writeCommand(&b, lastInfo, commandCount)
-				first = false
-			}
-			lastInfo = info
-			commandCount = 1
+		b.Truncate(0)
+		writeCommand(&b, info)
+		cmd := b.String()
+		if ac, ok := aggregatedCommands[cmd]; ok {
+			ac.count += 1
+			ac.executionTime += info.ExecutionTime()
 		} else {
-			commandCount += 1
-			lastInfo.executionTime += info.executionTime
+			commandOrder = append(commandOrder, cmd)
+			aggregatedCommands[cmd] = newAggregatedCommand(info.ExecutionTime())
 		}
 	}
-	if !first {
-		b.WriteString(", ")
+
+	b.Truncate(0)
+	for i, cmd := range commandOrder {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		writeCommandWithTime(&b, cmd, aggregatedCommands[cmd])
 	}
-	if lastInfo != nil {
-		writeCommand(&b, lastInfo, commandCount)
-	}
+
 	return b.String()
 }
 
+type aggregatedCommand struct {
+	count         int
+	executionTime time.Duration
+}
+
+func newAggregatedCommand(executionTime time.Duration) *aggregatedCommand {
+	return &aggregatedCommand{
+		count:         1,
+		executionTime: executionTime,
+	}
+}
+
 // writeCommand writes a command execution info to the string buffer.
-func writeCommand(b *bytes.Buffer, info *ExecutionInfo, count int) {
+func writeCommand(b *bytes.Buffer, info *ExecutionInfo) {
 	b.WriteString(info.CommandName())
 	b.WriteString("[")
 	for i, event := range info.Events() {
@@ -207,12 +192,18 @@ func writeCommand(b *bytes.Buffer, info *ExecutionInfo, count int) {
 		b.WriteString(event.String())
 	}
 	b.WriteString("]")
+}
+
+// writeCommandWithExecution writes a command string and accumulated execution
+// time with execution multiplier.
+func writeCommandWithTime(b *bytes.Buffer, cmd string, ac *aggregatedCommand) {
+	b.WriteString(cmd)
 	b.WriteString("[")
-	timeInMilliseconds := info.ExecutionTime().Nanoseconds() / int64(time.Millisecond)
+	timeInMilliseconds := ac.executionTime.Nanoseconds() / int64(time.Millisecond)
 	b.WriteString(strconv.FormatInt(timeInMilliseconds, 10))
 	b.WriteString("ms]")
-	if count > 1 {
+	if ac.count > 1 {
 		b.WriteString("x")
-		b.WriteString(strconv.Itoa(count))
+		b.WriteString(strconv.Itoa(ac.count))
 	}
 }
