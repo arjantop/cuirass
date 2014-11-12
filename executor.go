@@ -47,7 +47,7 @@ func (e *Executor) Exec(ctx context.Context, cmd *Command) (result interface{}, 
 			stats.addEvent(requestlog.Success)
 			logRequest(ctx, stats.toExecutionInfo(cmd.Name()))
 		}
-		if cache := requestcache.FromContext(ctx); cmd.IsCacheable() && cache != nil {
+		if cache := requestcache.FromContext(ctx); !responseFromCache && cmd.IsCacheable() && cache != nil {
 			cache.Add(cmd.Name(), cmd.CacheKey(), stats.toExecutionInfo(cmd.Name()), result, err)
 		}
 	}()

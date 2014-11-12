@@ -249,8 +249,21 @@ func TestExecSuccessCacheableCommandIsCached(t *testing.T) {
 
 	// This execution should return the value "foo" from cache instead of returning
 	// the value "bar" that woul be returned in the case of evaluation the command.
-	cmd2 := NewCachableCommand("bar", "", "a")
+	assertCommandFromCache(t, ex, ctx)
+
+	// Multiple responses from cache should always respond with the same result.
+	assertCommandFromCache(t, ex, ctx)
+
+	// This command has a different cache key so it should be evaluated.
+	cmd2 := NewCachableCommand("baz", "", "b")
 	r, err = ex.Exec(ctx, cmd2)
+	assert.Nil(t, err)
+	assert.Equal(t, "baz", r)
+}
+
+func assertCommandFromCache(t *testing.T, ex *cuirass.Executor, ctx context.Context) {
+	cmd := NewCachableCommand("bar", "", "a")
+	r, err := ex.Exec(ctx, cmd)
 	assert.Nil(t, err)
 	assert.Equal(t, "foo", r)
 
@@ -260,12 +273,6 @@ func TestExecSuccessCacheableCommandIsCached(t *testing.T) {
 	assert.Equal(t,
 		[]requestlog.ExecutionEvent{requestlog.Success, requestlog.ResponseFromCache},
 		request.Events())
-
-	// This command has a different cache key so it should be evaluated.
-	cmd3 := NewCachableCommand("baz", "", "b")
-	r, err = ex.Exec(ctx, cmd3)
-	assert.Nil(t, err)
-	assert.Equal(t, "baz", r)
 }
 
 func TestExecFallbackCacheableCommandIsCached(t *testing.T) {
