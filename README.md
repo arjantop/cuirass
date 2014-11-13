@@ -23,6 +23,12 @@ Sample output:
 2014/11/12 12:16:01 Request => GetUserAccountCommand[SUCCESS][11ms], GetPaymentInformationCommand[SUCCESS][85ms], GetUserAccountCommand[SUCCESS, RESPONSE_FROM_CACHE][0ms]x2, GetOrderCommand[SUCCESS][149ms], CreditCardCommand[TIMEOUT][1000ms]
 ```
 
+## TODO
+
+* Metrics
+* Request Collapsing/Batching
+* Dynamic configuration
+
 ## Hystrix Dashboard
 
 The plan is to make it compatible with [hystrix-dashboard](https://github.com/Netflix/Hystrix/tree/master/hystrix-dashboard).
