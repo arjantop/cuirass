@@ -10,6 +10,7 @@ import (
 	"github.com/arjantop/cuirass/circuitbreaker"
 	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
+	"github.com/arjantop/cuirass/util"
 	"github.com/arjantop/vaquita"
 )
 
@@ -180,7 +181,7 @@ func (e *Executor) getCircuitBreakerForCommand(cmd *Command) *circuitbreaker.Cir
 	if cb, ok := e.circuitBreakers.get(cmd.Name()); ok {
 		return cb
 	} else {
-		cb := circuitbreaker.New(cmd.Properties(e.cfg).CircuitBreaker)
+		cb := circuitbreaker.New(cmd.Properties(e.cfg).CircuitBreaker, util.NewClock())
 		e.circuitBreakers.set(cmd.Name(), cb)
 		return cb
 	}

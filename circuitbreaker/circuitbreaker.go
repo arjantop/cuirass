@@ -3,9 +3,9 @@ package circuitbreaker
 import (
 	"errors"
 	"sync/atomic"
-	"time"
 
 	"github.com/arjantop/cuirass/num"
+	"github.com/arjantop/cuirass/util"
 	"github.com/arjantop/vaquita"
 )
 
@@ -41,17 +41,20 @@ type CircuitBreaker struct {
 
 	errorCounter   *num.RollingNumber
 	requestCounter *num.RollingNumber
+
+	clock util.Clock
 }
 
 // Constructs a new circuit breaker. The circuit is closed by default and allowed
 // the initial statistical values are zero ().
-func New(props *CircuitBreakerProperties) *CircuitBreaker {
+func New(props *CircuitBreakerProperties, clock util.Clock) *CircuitBreaker {
 	return &CircuitBreaker{
 		props:          props,
 		circuitOpen:    intFalse,
 		lastTrialTime:  0,
 		errorCounter:   num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets),
 		requestCounter: num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets),
+		clock:          clock,
 	}
 }
 
@@ -105,7 +108,7 @@ func (cb *CircuitBreaker) updateState() {
 		if atomic.CompareAndSwapUint32(&cb.circuitOpen, intFalse, intTrue) {
 			// If we set the circuit state successfully update the request
 			// trial time to a current time.
-			atomic.StoreInt64(&cb.lastTrialTime, time.Now().UnixNano())
+			atomic.StoreInt64(&cb.lastTrialTime, cb.clock.Now().UnixNano())
 		}
 	}
 }
@@ -125,7 +128,7 @@ func (cb *CircuitBreaker) isRequestAllowed() (bool, bool) {
 // Time of last request trial is updated to the current time.
 func (cb *CircuitBreaker) isTrialCallAllowed() bool {
 	lastTrialTime := atomic.LoadInt64(&cb.lastTrialTime)
-	timestamp := time.Now().UnixNano()
+	timestamp := cb.clock.Now().UnixNano()
 	if cb.IsOpen() && timestamp > lastTrialTime+int64(cb.props.SleepWindow.Get()*1000000) {
 		if atomic.CompareAndSwapInt64(&cb.lastTrialTime, lastTrialTime, timestamp) {
 			return true
