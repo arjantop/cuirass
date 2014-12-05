@@ -6,22 +6,13 @@ import (
 	"time"
 
 	"github.com/arjantop/cuirass/num"
+	"github.com/arjantop/vaquita"
 )
 
 var (
-	// Default threshold in percents (%). If more than 50% of requests are failures
-	// we trip the breaker.
-	DefaultErrorThreshold float64 = 50.0
-	// Duration that we will sleep after tripping the breaker before attempting to
-	// reset the circuit.
-	DefaultSleepWindow time.Duration = 5000 * time.Millisecond
-	// Volume of requests that have to be made before request error percentage matters.
-	// We don't want to trip the breaker a couple of first requests fail for some reason.
-	DefaultRequestVolumeThreshold uint64 = 20
-
 	// Error indicating that the circuit is open and the request was not executed
 	// or an attempt to reset the circuit failed.
-	CircuitOpenError = errors.New("Circuit open")
+	CircuitOpenError = errors.New("circuit open")
 )
 
 // Integer constants to be used as true and false constants with circuit breaker.
@@ -30,12 +21,19 @@ const (
 	intFalse = 0
 )
 
+type CircuitBreakerProperties struct {
+	Enabled                  vaquita.BoolProperty
+	RequestVolumeThreshold   vaquita.IntProperty
+	SleepWindow              vaquita.IntProperty
+	ErrorThresholdPercentage vaquita.IntProperty
+	ForceOpen                vaquita.BoolProperty
+	ForceClosed              vaquita.BoolProperty
+}
+
 // CircuitBreaker is an implementation of circuit breaker pattern.
 // http://martinfowler.com/bliki/CircuitBreaker.html
 type CircuitBreaker struct {
-	errorThreshold         float64
-	sleepWindow            time.Duration
-	requestVolumeThreshold uint64
+	props *CircuitBreakerProperties
 
 	// uint32 is used instead of bool so we can use atomic operations.
 	circuitOpen   uint32
@@ -47,15 +45,13 @@ type CircuitBreaker struct {
 
 // Constructs a new circuit breaker. The circuit is closed by default and allowed
 // the initial statistical values are zero ().
-func New(errorThreshold float64, sleepWindow time.Duration, requestVolumeThreshold uint64) *CircuitBreaker {
+func New(props *CircuitBreakerProperties) *CircuitBreaker {
 	return &CircuitBreaker{
-		errorThreshold:         errorThreshold,
-		sleepWindow:            sleepWindow,
-		requestVolumeThreshold: requestVolumeThreshold,
-		circuitOpen:            intFalse,
-		lastTrialTime:          0,
-		errorCounter:           num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets),
-		requestCounter:         num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets),
+		props:          props,
+		circuitOpen:    intFalse,
+		lastTrialTime:  0,
+		errorCounter:   num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets),
+		requestCounter: num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets),
 	}
 }
 
@@ -63,6 +59,11 @@ func New(errorThreshold float64, sleepWindow time.Duration, requestVolumeThresho
 // If the circuit is open the function is not executed and an error CircuitOpenError
 // is returned.
 func (cb *CircuitBreaker) Do(f func() error) error {
+	if !cb.props.Enabled.Get() {
+		return f()
+	} else if cb.props.ForceOpen.Get() {
+		return CircuitOpenError
+	}
 	// Update the circuit state after every request.
 	defer cb.updateState()
 	cb.requestCounter.Increment()
@@ -93,12 +94,12 @@ func (cb *CircuitBreaker) Do(f func() error) error {
 
 // updateState trips the breaker if the request error rate is larger than the threshold.
 func (cb *CircuitBreaker) updateState() {
-	if cb.IsOpen() || cb.requestCounter.Sum() < cb.requestVolumeThreshold {
+	if cb.IsOpen() || cb.requestCounter.Sum() < uint64(cb.props.RequestVolumeThreshold.Get()) {
 		// If the circuit is open pr there were not enough requests made in the
 		// configured statistical window there is nothing to do.
 		return
 	}
-	if float64(cb.errorCounter.Sum())*100.0/float64(cb.requestCounter.Sum()) > cb.errorThreshold {
+	if float64(cb.errorCounter.Sum())*100.0/float64(cb.requestCounter.Sum()) > float64(cb.props.ErrorThresholdPercentage.Get()) {
 		// If the error request rate is greater that configured threshold attempt
 		// to change circuit to Open.
 		if atomic.CompareAndSwapUint32(&cb.circuitOpen, intFalse, intTrue) {
@@ -114,6 +115,9 @@ func (cb *CircuitBreaker) updateState() {
 // in half-open state with attempt to close the circuit on trial request success.
 func (cb *CircuitBreaker) isRequestAllowed() (bool, bool) {
 	trialCall := cb.isTrialCallAllowed()
+	if cb.props.ForceClosed.Get() {
+		return true, trialCall
+	}
 	return !cb.IsOpen() || trialCall, trialCall
 }
 
@@ -122,7 +126,7 @@ func (cb *CircuitBreaker) isRequestAllowed() (bool, bool) {
 func (cb *CircuitBreaker) isTrialCallAllowed() bool {
 	lastTrialTime := atomic.LoadInt64(&cb.lastTrialTime)
 	timestamp := time.Now().UnixNano()
-	if cb.IsOpen() && timestamp > lastTrialTime+int64(cb.sleepWindow*time.Nanosecond) {
+	if cb.IsOpen() && timestamp > lastTrialTime+int64(cb.props.SleepWindow.Get()*1000000) {
 		if atomic.CompareAndSwapInt64(&cb.lastTrialTime, lastTrialTime, timestamp) {
 			return true
 		}
@@ -132,5 +136,8 @@ func (cb *CircuitBreaker) isTrialCallAllowed() bool {
 
 // IsOpen returns true if the state of circuit breaker is open or half-open
 func (cb *CircuitBreaker) IsOpen() bool {
-	return atomic.LoadUint32(&cb.circuitOpen) == intTrue
+	if cb.props.ForceClosed.Get() {
+		return false
+	}
+	return cb.props.ForceOpen.Get() || atomic.LoadUint32(&cb.circuitOpen) == intTrue
 }

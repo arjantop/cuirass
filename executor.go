@@ -10,6 +10,7 @@ import (
 	"github.com/arjantop/cuirass/circuitbreaker"
 	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
+	"github.com/arjantop/vaquita"
 )
 
 var UnknownPanic = errors.New("Unknown panic")
@@ -20,13 +21,15 @@ var DefaultRequestTimeout time.Duration = time.Second
 // their errors.
 // Executor is safe to be accessed by multiple threads.
 type Executor struct {
+	cfg             vaquita.DynamicConfig
 	circuitBreakers cbMap
 	requestTimeout  time.Duration
 }
 
 // NewExecutor constructs a new empty executor.
-func NewExecutor(requestTimeout time.Duration) *Executor {
+func NewExecutor(cfg vaquita.DynamicConfig, requestTimeout time.Duration) *Executor {
 	return &Executor{
+		cfg:             cfg,
 		circuitBreakers: newCbMap(),
 		requestTimeout:  requestTimeout,
 	}
@@ -177,10 +180,7 @@ func (e *Executor) getCircuitBreakerForCommand(cmd *Command) *circuitbreaker.Cir
 	if cb, ok := e.circuitBreakers.get(cmd.Name()); ok {
 		return cb
 	} else {
-		cb := circuitbreaker.New(
-			circuitbreaker.DefaultErrorThreshold,
-			circuitbreaker.DefaultSleepWindow,
-			circuitbreaker.DefaultRequestVolumeThreshold)
+		cb := circuitbreaker.New(cmd.Properties(e.cfg).CircuitBreaker)
 		e.circuitBreakers.set(cmd.Name(), cb)
 		return cb
 	}

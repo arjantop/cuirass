@@ -3,6 +3,8 @@ package cuirass
 import (
 	"errors"
 
+	"github.com/arjantop/vaquita"
+
 	"code.google.com/p/go.net/context"
 )
 
@@ -45,6 +47,10 @@ func (c *Command) IsCacheable() bool {
 // CacheKey returns a key used for request caching.
 func (c *Command) CacheKey() string {
 	return c.cacheKey
+}
+
+func (c *Command) Properties(cfg vaquita.DynamicConfig) *CommandProperties {
+	return newCommandProperties(cfg)
 }
 
 // CommandBuilder is a helper used for constructing new Commands.

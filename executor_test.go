@@ -11,6 +11,7 @@ import (
 	"github.com/arjantop/cuirass/circuitbreaker"
 	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
+	"github.com/arjantop/vaquita"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -38,7 +39,7 @@ func NewFooCommand(s, f string) *cuirass.Command {
 }
 
 func newTestingExecutor() *cuirass.Executor {
-	return cuirass.NewExecutor(100 * time.Millisecond)
+	return cuirass.NewExecutor(vaquita.NewEmptyMapConfig(), 100*time.Millisecond)
 }
 
 func TestExecSuccessNoLogging(t *testing.T) {
@@ -167,7 +168,7 @@ func TestExecFailuresTripCircuitBreaker(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("error", "none")
 	ex := newTestingExecutor()
-	for i := 0; i < int(circuitbreaker.DefaultRequestVolumeThreshold); i++ {
+	for i := 0; i < 20; i++ {
 		_, err := ex.Exec(ctx, cmd)
 		assert.Equal(t, errors.New("foo"), err)
 	}
@@ -213,7 +214,7 @@ func NewTimeoutCommand() *cuirass.Command {
 func TestExecTimesOut(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewTimeoutCommand()
-	ex := cuirass.NewExecutor(time.Millisecond)
+	ex := cuirass.NewExecutor(vaquita.NewEmptyMapConfig(), time.Millisecond)
 	_, err := ex.Exec(ctx, cmd)
 	assert.Equal(t, context.DeadlineExceeded, err)
 

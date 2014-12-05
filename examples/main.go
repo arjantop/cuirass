@@ -13,11 +13,12 @@ import (
 	"github.com/arjantop/cuirass/examples/commands"
 	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
+	"github.com/arjantop/vaquita"
 )
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	executor := cuirass.NewExecutor(1 * time.Second)
+	executor := cuirass.NewExecutor(vaquita.NewEmptyMapConfig(), 1*time.Second)
 	for {
 		ctx := requestlog.WithRequestLog(requestcache.WithRequestCache(context.Background()))
 
