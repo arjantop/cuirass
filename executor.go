@@ -24,15 +24,13 @@ var DefaultRequestTimeout time.Duration = time.Second
 type Executor struct {
 	cfg             vaquita.DynamicConfig
 	circuitBreakers cbMap
-	requestTimeout  time.Duration
 }
 
 // NewExecutor constructs a new empty executor.
-func NewExecutor(cfg vaquita.DynamicConfig, requestTimeout time.Duration) *Executor {
+func NewExecutor(cfg vaquita.DynamicConfig) *Executor {
 	return &Executor{
 		cfg:             cfg,
 		circuitBreakers: newCbMap(),
-		requestTimeout:  requestTimeout,
 	}
 }
 
@@ -67,7 +65,7 @@ func (e *Executor) Exec(ctx context.Context, cmd *Command) (result interface{}, 
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, e.requestTimeout)
+	ctx, cancel := context.WithTimeout(ctx, cmd.Properties(e.cfg).ExecutionTimeout.Get())
 	defer cancel()
 	cb := e.getCircuitBreakerForCommand(cmd)
 	// Execute the command in the context of its circuit-breaker.

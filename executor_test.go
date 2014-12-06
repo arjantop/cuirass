@@ -38,14 +38,18 @@ func NewFooCommand(s, f string) *cuirass.Command {
 	return b.Build()
 }
 
-func newTestingExecutor() *cuirass.Executor {
-	return cuirass.NewExecutor(vaquita.NewEmptyMapConfig(), 100*time.Millisecond)
+func newTestingExecutor(cfg vaquita.DynamicConfig) *cuirass.Executor {
+	if cfg == nil {
+		cfg = vaquita.NewEmptyMapConfig()
+	}
+	cfg.SetProperty("cuirass.command.default.execution.isolation.thread.timeoutInMilliseconds", "100")
+	return cuirass.NewExecutor(cfg)
 }
 
 func TestExecSuccessNoLogging(t *testing.T) {
 	ctx := context.Background()
 	cmd := NewFooCommand("foo", "")
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 	_, err := ex.Exec(ctx, cmd)
 	assert.Nil(t, err)
 }
@@ -53,7 +57,7 @@ func TestExecSuccessNoLogging(t *testing.T) {
 func TestExecSuccess(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("foo", "")
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 	r, err := ex.Exec(ctx, cmd)
 	assert.Nil(t, err)
 	assert.Equal(t, "foo", r)
@@ -66,7 +70,7 @@ func TestExecSuccess(t *testing.T) {
 func TestExecErrorWithFallback(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("error", "fallback")
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 	r, err := ex.Exec(ctx, cmd)
 	assert.Nil(t, err)
 	assert.Equal(t, "fallback", r)
@@ -81,7 +85,7 @@ func TestExecErrorWithFallback(t *testing.T) {
 func TestExecErrorWithFallbackPanic(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("error", "panic")
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 	_, err := ex.Exec(ctx, cmd)
 	assert.Equal(t, errors.New("fallpanic"), err)
 
@@ -95,7 +99,7 @@ func TestExecErrorWithFallbackPanic(t *testing.T) {
 func TestExecErrorWithoutFallback(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("error", "none")
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 	_, err := ex.Exec(ctx, cmd)
 	assert.Equal(t, errors.New("foo"), err)
 
@@ -109,7 +113,7 @@ func TestExecErrorWithoutFallback(t *testing.T) {
 func TestExecErrorWithoutFallbackFailure(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("error", "error")
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 	_, err := ex.Exec(ctx, cmd)
 	// The original error from Run is returned if Fallback fails too.
 	assert.Equal(t, errors.New("foo"), err)
@@ -124,7 +128,7 @@ func TestExecErrorWithoutFallbackFailure(t *testing.T) {
 func TestExecPanicWithFallback(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("panic", "fallback")
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 	r, err := ex.Exec(ctx, cmd)
 	assert.Nil(t, err)
 	assert.Equal(t, "fallback", r)
@@ -139,7 +143,7 @@ func TestExecPanicWithFallback(t *testing.T) {
 func TestExecPanicWithoutFallback(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("panic", "none")
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 	_, err := ex.Exec(ctx, cmd)
 	assert.Equal(t, errors.New("foopanic"), err)
 
@@ -153,7 +157,7 @@ func TestExecPanicWithoutFallback(t *testing.T) {
 func TestExecIntPanicWithoutFallback(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("panicint", "none")
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 	_, err := ex.Exec(ctx, cmd)
 	assert.Equal(t, cuirass.UnknownPanic, err)
 
@@ -167,7 +171,7 @@ func TestExecIntPanicWithoutFallback(t *testing.T) {
 func TestExecFailuresTripCircuitBreaker(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("error", "none")
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 	for i := 0; i < 20; i++ {
 		_, err := ex.Exec(ctx, cmd)
 		assert.Equal(t, errors.New("foo"), err)
@@ -185,7 +189,7 @@ func TestExecFailuresTripCircuitBreaker(t *testing.T) {
 func TestExecRequestLogging(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("foo", "")
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 
 	ex.Exec(ctx, cmd)
 	log := requestlog.FromContext(ctx)
@@ -214,7 +218,9 @@ func NewTimeoutCommand() *cuirass.Command {
 func TestExecTimesOut(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewTimeoutCommand()
-	ex := cuirass.NewExecutor(vaquita.NewEmptyMapConfig(), time.Millisecond)
+	cfg := vaquita.NewEmptyMapConfig()
+	cfg.SetProperty("cuirass.command.default.execution.isolation.thread.timeoutInMilliseconds", "1")
+	ex := cuirass.NewExecutor(cfg)
 	_, err := ex.Exec(ctx, cmd)
 	assert.Equal(t, context.DeadlineExceeded, err)
 
@@ -241,7 +247,7 @@ func NewCachableCommand(s, f, key string) *cuirass.Command {
 
 func TestExecSuccessCacheableCommandIsCached(t *testing.T) {
 	ctx := requestlog.WithRequestLog(requestcache.WithRequestCache(context.Background()))
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 
 	cmd := NewCachableCommand("foo", "", "a")
 	r, err := ex.Exec(ctx, cmd)
@@ -278,7 +284,7 @@ func assertCommandFromCache(t *testing.T, ex *cuirass.Executor, ctx context.Cont
 
 func TestExecFallbackCacheableCommandIsCached(t *testing.T) {
 	ctx := requestcache.WithRequestCache(context.Background())
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 
 	cmd := NewCachableCommand("error", "foo", "a")
 	r, err := ex.Exec(ctx, cmd)
@@ -294,7 +300,7 @@ func TestExecFallbackCacheableCommandIsCached(t *testing.T) {
 
 func TestExecContextLocalCaching(t *testing.T) {
 	ctx1 := requestcache.WithRequestCache(context.Background())
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 
 	cmd := NewCachableCommand("foo", "", "a")
 	_, err := ex.Exec(ctx1, cmd)
@@ -311,7 +317,7 @@ func TestExecContextLocalCaching(t *testing.T) {
 
 func TestExecCachingOnlyInCacheContext(t *testing.T) {
 	ctx := context.Background()
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 
 	cmd := NewCachableCommand("foo", "", "a")
 	_, err := ex.Exec(ctx, cmd)
@@ -325,7 +331,7 @@ func TestExecCachingOnlyInCacheContext(t *testing.T) {
 
 func TestExecFailureCacheableCommandIsCached(t *testing.T) {
 	ctx := requestcache.WithRequestCache(context.Background())
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 
 	cmd := NewCachableCommand("error", "none", "a")
 	_, err := ex.Exec(ctx, cmd)
@@ -339,7 +345,7 @@ func TestExecFailureCacheableCommandIsCached(t *testing.T) {
 
 func TestExecNonCacheableCommandNotCached(t *testing.T) {
 	ctx := requestcache.WithRequestCache(context.Background())
-	ex := newTestingExecutor()
+	ex := newTestingExecutor(nil)
 
 	cmd := NewFooCommand("foo", "")
 	r, err := ex.Exec(ctx, cmd)

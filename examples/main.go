@@ -18,7 +18,7 @@ import (
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	executor := cuirass.NewExecutor(vaquita.NewEmptyMapConfig(), 1*time.Second)
+	executor := cuirass.NewExecutor(vaquita.NewEmptyMapConfig())
 	for {
 		ctx := requestlog.WithRequestLog(requestcache.WithRequestCache(context.Background()))
 
