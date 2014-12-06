@@ -43,7 +43,13 @@ func (e *Executor) Exec(ctx context.Context, cmd *Command) (result interface{}, 
 	stats := newExecutionStats(time.Now())
 	defer func() {
 		if r := recover(); r != nil {
-			result, err = execFallback(ctx, cmd, stats, r)
+			if !cmd.Properties(e.cfg).FallbackEnabled.Get() {
+				stats.addEvent(requestlog.Failure)
+				logRequest(ctx, stats.toExecutionInfo(cmd.Name()))
+				return
+			} else {
+				result, err = execFallback(ctx, cmd, stats, r)
+			}
 		} else if !responseFromCache {
 			// The request was successfully completed.
 			stats.addEvent(requestlog.Success)

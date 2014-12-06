@@ -9,11 +9,14 @@ import (
 
 type CommandProperties struct {
 	ExecutionTimeout vaquita.DurationProperty
+	FallbackEnabled  vaquita.BoolProperty
 	CircuitBreaker   *circuitbreaker.CircuitBreakerProperties
 }
 
 const (
 	ExecutionTimeoutDefault = time.Second
+
+	FallbackEnabledDefault = true
 
 	CircuitBreakerEnabledDefault                  = true
 	CircuitBreakerRequestVolumeThresholdDefault   = 20
@@ -29,6 +32,7 @@ func newCommandProperties(cfg vaquita.DynamicConfig) *CommandProperties {
 	cbPrefix := ".command.default.circuitBreaker"
 	return &CommandProperties{
 		ExecutionTimeout: pf.GetDurationProperty(propertyPrefix+".command.default.execution.isolation.thread.timeoutInMilliseconds", ExecutionTimeoutDefault, time.Millisecond),
+		FallbackEnabled:  pf.GetBoolProperty(propertyPrefix+".command.default.fallback.enabled", FallbackEnabledDefault),
 		CircuitBreaker: &circuitbreaker.CircuitBreakerProperties{
 			Enabled:                  pf.GetBoolProperty(propertyPrefix+cbPrefix+".enabled", CircuitBreakerEnabledDefault),
 			RequestVolumeThreshold:   pf.GetIntProperty(propertyPrefix+cbPrefix+".requestVolumeThreshold", CircuitBreakerRequestVolumeThresholdDefault),

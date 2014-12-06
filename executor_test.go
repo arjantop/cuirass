@@ -140,6 +140,23 @@ func TestExecPanicWithFallback(t *testing.T) {
 		request.Events())
 }
 
+func TestExecFallbackDisabled(t *testing.T) {
+	ctx := requestlog.WithRequestLog(context.Background())
+	cmd := NewFooCommand("error", "fallback")
+
+	cfg := vaquita.NewEmptyMapConfig()
+	cfg.SetProperty("cuirass.command.default.fallback.enabled", "false")
+	ex := newTestingExecutor(cfg)
+	_, err := ex.Exec(ctx, cmd)
+	assert.Equal(t, errors.New("foo"), err)
+
+	request := requestlog.FromContext(ctx).LastRequest()
+	assert.Equal(t, "FooCommand", request.CommandName())
+	assert.Equal(t,
+		[]requestlog.ExecutionEvent{requestlog.Failure},
+		request.Events())
+}
+
 func TestExecPanicWithoutFallback(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("panic", "none")
