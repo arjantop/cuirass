@@ -1,6 +1,7 @@
 package num
 
 import (
+	"sync"
 	"time"
 
 	"github.com/arjantop/cuirass/util"
@@ -15,12 +16,14 @@ var (
 
 // RollingNumber is an implementation of a number that is defined for a specified
 // window. Value changes that fall out of the sliding window are discarded.
+// The implementation is thread-safe.
 type RollingNumber struct {
 	bucketSize        time.Duration
 	currentBucket     uint
 	currentBucketTime time.Time
 	buckets           []uint64
 	clock             util.Clock
+	lock              *sync.RWMutex
 }
 
 // NewRollingNumber constructs a new RollingNumber with a default value of zero.
@@ -31,6 +34,7 @@ func NewRollingNumber(windowSize time.Duration, windowBuckets uint, clock util.C
 		currentBucketTime: clock.Now(),
 		buckets:           make([]uint64, windowBuckets),
 		clock:             clock,
+		lock:              new(sync.RWMutex),
 	}
 }
 
@@ -49,16 +53,22 @@ func calculateBucketSize(windowSize time.Duration, windowBuckets uint) time.Dura
 
 // BucketSize returns the calculated bucket size based on requested sliding window parameters.
 func (n *RollingNumber) BucketSize() time.Duration {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
 	return n.bucketSize
 }
 
 // Increment increments the number by one.
 func (n *RollingNumber) Increment() {
+	n.lock.Lock()
+	defer n.lock.Unlock()
 	n.buckets[n.findCurrentBucket()] += 1
 }
 
 // Sum sums all the bucket values of the sliding window and returns the result.
 func (n *RollingNumber) Sum() uint64 {
+	n.lock.Lock()
+	defer n.lock.Unlock()
 	// We don't need the current bucket but we must still recalculate which bucket is current
 	// and reset values that are no longer valid.
 	n.findCurrentBucket()
