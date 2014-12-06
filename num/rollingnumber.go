@@ -1,6 +1,10 @@
 package num
 
-import "time"
+import (
+	"time"
+
+	"github.com/arjantop/cuirass/util"
+)
 
 var (
 	// Default size of statistical window over which the rolling number is defined.
@@ -16,15 +20,17 @@ type RollingNumber struct {
 	currentBucket     uint
 	currentBucketTime time.Time
 	buckets           []uint64
+	clock             util.Clock
 }
 
 // NewRollingNumber constructs a new RollingNumber with a default value of zero.
-func NewRollingNumber(windowSize time.Duration, windowBuckets uint) *RollingNumber {
+func NewRollingNumber(windowSize time.Duration, windowBuckets uint, clock util.Clock) *RollingNumber {
 	return &RollingNumber{
 		bucketSize:        calculateBucketSize(windowSize, windowBuckets),
 		currentBucket:     0,
-		currentBucketTime: time.Now(),
+		currentBucketTime: clock.Now(),
 		buckets:           make([]uint64, windowBuckets),
+		clock:             clock,
 	}
 }
 
@@ -66,7 +72,7 @@ func (n *RollingNumber) Sum() uint64 {
 // Reset resets a number to a default value.
 func (n *RollingNumber) Reset() {
 	n.currentBucket = 0
-	n.currentBucketTime = time.Now()
+	n.currentBucketTime = n.clock.Now()
 	for i, _ := range n.buckets {
 		n.buckets[i] = 0
 	}
@@ -75,7 +81,7 @@ func (n *RollingNumber) Reset() {
 // findCurrentBucket returns an index of the current bucket and updates the buckets
 // that should be reset for reuse based on the time elapsed since last access.
 func (n *RollingNumber) findCurrentBucket() uint {
-	now := time.Now()
+	now := n.clock.Now()
 	timeDiffFromFirstBucket := now.Sub(n.currentBucketTime)
 	bucketsBehind := uint(timeDiffFromFirstBucket / n.bucketSize)
 	if bucketsBehind > 0 {

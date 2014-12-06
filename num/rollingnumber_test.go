@@ -5,27 +5,31 @@ import (
 	"time"
 
 	"github.com/arjantop/cuirass/num"
+	"github.com/arjantop/cuirass/util"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestMinimalBucketSizeIsMillisecond(t *testing.T) {
-	n := num.NewRollingNumber(time.Millisecond, 10)
+	n := num.NewRollingNumber(time.Millisecond, 10, util.NewClock())
 	assert.Equal(t, time.Millisecond, n.BucketSize())
 }
 
-func newTestingRollingNumber() *num.RollingNumber {
-	return num.NewRollingNumber(10*time.Millisecond, 10)
+func newTestingRollingNumber(clock util.Clock) *num.RollingNumber {
+	if clock == nil {
+		clock = util.NewClock()
+	}
+	return num.NewRollingNumber(10*time.Millisecond, 10, clock)
 }
 
 func TestBucketSizeIsCalculated(t *testing.T) {
-	n := num.NewRollingNumber(time.Minute, 30)
+	n := num.NewRollingNumber(time.Minute, 30, util.NewClock())
 	assert.Equal(t, 2*time.Second, n.BucketSize())
-	n2 := newTestingRollingNumber()
+	n2 := newTestingRollingNumber(nil)
 	assert.Equal(t, time.Millisecond, n2.BucketSize())
 }
 
 func TestRollingNumberIncrement(t *testing.T) {
-	n := newTestingRollingNumber()
+	n := newTestingRollingNumber(nil)
 	assert.Equal(t, 0, n.Sum())
 	n.Increment()
 	assert.Equal(t, 1, n.Sum())
@@ -39,25 +43,27 @@ func TestRollingNumberIncrement(t *testing.T) {
 }
 
 func TestRollingNumberSumInWindow(t *testing.T) {
-	n := newTestingRollingNumber()
+	clock := util.NewTestabeClock(time.Now())
+	n := newTestingRollingNumber(clock)
 	n.Increment()
-	time.Sleep(time.Millisecond)
+	clock.Add(time.Millisecond)
 	n.Increment()
 	n.Increment()
 	assert.Equal(t, 3, n.Sum())
-	time.Sleep(9 * time.Millisecond)
+	clock.Add(9 * time.Millisecond)
 	assert.Equal(t, 2, n.Sum())
-	time.Sleep(time.Millisecond)
+	clock.Add(time.Millisecond)
 	assert.Equal(t, 0, n.Sum())
 }
 
 func TestRollingNumberReset(t *testing.T) {
-	n := newTestingRollingNumber()
+	clock := util.NewTestabeClock(time.Now())
+	n := newTestingRollingNumber(clock)
 	n.Increment()
-	time.Sleep(time.Millisecond)
+	clock.Add(time.Millisecond)
 	n.Increment()
 	n.Increment()
-	time.Sleep(time.Millisecond)
+	clock.Add(time.Millisecond)
 	n.Increment()
 	n.Reset()
 	assert.Equal(t, 0, n.Sum())

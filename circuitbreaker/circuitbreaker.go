@@ -52,8 +52,8 @@ func New(props *CircuitBreakerProperties, clock util.Clock) *CircuitBreaker {
 		props:          props,
 		circuitOpen:    intFalse,
 		lastTrialTime:  0,
-		errorCounter:   num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets),
-		requestCounter: num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets),
+		errorCounter:   num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets, clock),
+		requestCounter: num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets, clock),
 		clock:          clock,
 	}
 }
