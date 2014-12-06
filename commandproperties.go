@@ -8,15 +8,18 @@ import (
 )
 
 type CommandProperties struct {
-	ExecutionTimeout vaquita.DurationProperty
-	FallbackEnabled  vaquita.BoolProperty
-	CircuitBreaker   *circuitbreaker.CircuitBreakerProperties
+	ExecutionTimeout    vaquita.DurationProperty
+	FallbackEnabled     vaquita.BoolProperty
+	RequestCacheEnabled vaquita.BoolProperty
+	RequestLogEnabled   vaquita.BoolProperty
+	CircuitBreaker      *circuitbreaker.CircuitBreakerProperties
 }
 
 const (
-	ExecutionTimeoutDefault = time.Second
-
-	FallbackEnabledDefault = true
+	ExecutionTimeoutDefault    = time.Second
+	FallbackEnabledDefault     = true
+	RequestCacheEnabledDefault = true
+	RequestLogEnabledDefault   = true
 
 	CircuitBreakerEnabledDefault                  = true
 	CircuitBreakerRequestVolumeThresholdDefault   = 20
@@ -31,8 +34,10 @@ func newCommandProperties(cfg vaquita.DynamicConfig) *CommandProperties {
 	propertyPrefix := pf.GetStringProperty("cuirass.config.prefix", "cuirass").Get()
 	cbPrefix := ".command.default.circuitBreaker"
 	return &CommandProperties{
-		ExecutionTimeout: pf.GetDurationProperty(propertyPrefix+".command.default.execution.isolation.thread.timeoutInMilliseconds", ExecutionTimeoutDefault, time.Millisecond),
-		FallbackEnabled:  pf.GetBoolProperty(propertyPrefix+".command.default.fallback.enabled", FallbackEnabledDefault),
+		ExecutionTimeout:    pf.GetDurationProperty(propertyPrefix+".command.default.execution.isolation.thread.timeoutInMilliseconds", ExecutionTimeoutDefault, time.Millisecond),
+		FallbackEnabled:     pf.GetBoolProperty(propertyPrefix+".command.default.fallback.enabled", FallbackEnabledDefault),
+		RequestCacheEnabled: pf.GetBoolProperty(propertyPrefix+".command.default.requestCache.enabled", RequestCacheEnabledDefault),
+		RequestLogEnabled:   pf.GetBoolProperty(propertyPrefix+".command.default.requestLog.enabled", RequestLogEnabledDefault),
 		CircuitBreaker: &circuitbreaker.CircuitBreakerProperties{
 			Enabled:                  pf.GetBoolProperty(propertyPrefix+cbPrefix+".enabled", CircuitBreakerEnabledDefault),
 			RequestVolumeThreshold:   pf.GetIntProperty(propertyPrefix+cbPrefix+".requestVolumeThreshold", CircuitBreakerRequestVolumeThresholdDefault),

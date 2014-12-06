@@ -45,28 +45,28 @@ func (e *Executor) Exec(ctx context.Context, cmd *Command) (result interface{}, 
 		if r := recover(); r != nil {
 			if !cmd.Properties(e.cfg).FallbackEnabled.Get() {
 				stats.addEvent(requestlog.Failure)
-				logRequest(ctx, stats.toExecutionInfo(cmd.Name()))
+				e.logRequest(ctx, stats.toExecutionInfo(cmd.Name()), cmd.Properties(e.cfg))
 				return
 			} else {
-				result, err = execFallback(ctx, cmd, stats, r)
+				result, err = e.execFallback(ctx, cmd, stats, r)
 			}
 		} else if !responseFromCache {
 			// The request was successfully completed.
 			stats.addEvent(requestlog.Success)
-			logRequest(ctx, stats.toExecutionInfo(cmd.Name()))
+			e.logRequest(ctx, stats.toExecutionInfo(cmd.Name()), cmd.Properties(e.cfg))
 		}
-		if cache := requestcache.FromContext(ctx); !responseFromCache && cmd.IsCacheable() && cache != nil {
+		if cache := e.getRequestCache(ctx, cmd); cache != nil && !responseFromCache {
 			cache.Add(cmd.Name(), cmd.CacheKey(), stats.toExecutionInfo(cmd.Name()), result, err)
 		}
 	}()
 
-	if cache := requestcache.FromContext(ctx); cmd.IsCacheable() && cache != nil {
+	if cache := e.getRequestCache(ctx, cmd); cache != nil {
 		if ec := cache.Get(cmd.Name(), cmd.CacheKey()); ec != nil {
 			// Return the cached return values straight from cache.
 			result, err = ec.Response()
 			// Mark that the response came from cache and we already did the logging.
 			responseFromCache = true
-			logRequest(ctx, ec.ExecutionInfo())
+			e.logRequest(ctx, ec.ExecutionInfo(), cmd.Properties(e.cfg))
 			return
 		}
 	}
@@ -85,6 +85,14 @@ func (e *Executor) Exec(ctx context.Context, cmd *Command) (result interface{}, 
 		panic(err)
 	}
 	return
+}
+
+func (e *Executor) getRequestCache(ctx context.Context, cmd *Command) *requestcache.RequestCache {
+	cache := requestcache.FromContext(ctx)
+	if cache != nil && cmd.IsCacheable() && cmd.Properties(e.cfg).RequestCacheEnabled.Get() {
+		return cache
+	}
+	return nil
 }
 
 // executionStats holds the execution start time and the events that occurred
@@ -114,15 +122,15 @@ func (e *executionStats) toExecutionInfo(commandName string) *requestlog.Executi
 }
 
 // logRequest logs a request if the context contains a RequestLogger.
-func logRequest(ctx context.Context, info *requestlog.ExecutionInfo) {
-	if logger := requestlog.FromContext(ctx); logger != nil {
+func (e *Executor) logRequest(ctx context.Context, info *requestlog.ExecutionInfo, props *CommandProperties) {
+	if logger := requestlog.FromContext(ctx); props.RequestLogEnabled.Get() && logger != nil {
 		logger.AddExecutionInfo(info)
 	}
 }
 
 // executeFallback handles a fallback for a failed command.
 // Because a Fallback can panic too errors are recovered the same way as for Exec.
-func execFallback(
+func (e *Executor) execFallback(
 	ctx context.Context,
 	cmd *Command,
 	stats executionStats,
@@ -136,7 +144,7 @@ func execFallback(
 			}
 			err = panicToError(r)
 		}
-		logRequest(ctx, stats.toExecutionInfo(cmd.Name()))
+		e.logRequest(ctx, stats.toExecutionInfo(cmd.Name()), cmd.Properties(e.cfg))
 	}()
 
 	addEventForRequest(&stats, r)

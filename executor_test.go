@@ -221,6 +221,18 @@ func TestExecRequestLogging(t *testing.T) {
 	assert.Equal(t, 3, log.Size())
 }
 
+func TestExecRequestLogDisabled(t *testing.T) {
+	ctx := requestlog.WithRequestLog(context.Background())
+	cmd := NewFooCommand("foo", "")
+	cfg := vaquita.NewEmptyMapConfig()
+	cfg.SetProperty("cuirass.command.default.requestLog.enabled", "false")
+	ex := newTestingExecutor(cfg)
+
+	ex.Exec(ctx, cmd)
+	log := requestlog.FromContext(ctx)
+	assert.Equal(t, 0, log.Size())
+}
+
 func NewTimeoutCommand() *cuirass.Command {
 	return cuirass.NewCommand("TimeoutCommand", func(ctx context.Context) (interface{}, error) {
 		select {
@@ -358,6 +370,22 @@ func TestExecFailureCacheableCommandIsCached(t *testing.T) {
 	cmd2 := NewCachableCommand("bar", "", "a")
 	_, err = ex.Exec(ctx, cmd2)
 	assert.Equal(t, errors.New("foo"), err)
+}
+
+func TestExecRequestCacheDisabled(t *testing.T) {
+	ctx := requestcache.WithRequestCache(context.Background())
+	cfg := vaquita.NewEmptyMapConfig()
+	cfg.SetProperty("cuirass.command.default.requestCache.enabled", "false")
+	ex := newTestingExecutor(cfg)
+
+	cmd := NewCachableCommand("error", "none", "a")
+	_, err := ex.Exec(ctx, cmd)
+	assert.Equal(t, errors.New("foo"), err)
+
+	cmd2 := NewCachableCommand("bar", "", "a")
+	r, err := ex.Exec(ctx, cmd2)
+	assert.Nil(t, err)
+	assert.Equal(t, "bar", r)
 }
 
 func TestExecNonCacheableCommandNotCached(t *testing.T) {
