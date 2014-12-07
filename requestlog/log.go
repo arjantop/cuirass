@@ -91,6 +91,10 @@ func (e *ExecutionInfo) ExecutionTime() time.Duration {
 	return e.executionTime
 }
 
+func (e *ExecutionInfo) Result() ExecutionEvent {
+	return e.events[0]
+}
+
 // Events returns a slice of events that happend in the order that they occurred.
 func (e *ExecutionInfo) Events() []ExecutionEvent {
 	r := make([]ExecutionEvent, len(e.events))

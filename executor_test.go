@@ -402,3 +402,24 @@ func TestExecNonCacheableCommandNotCached(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "bar", r)
 }
+
+func TestExecutorMetricsAreUpdated(t *testing.T) {
+	ctx := context.Background()
+	ex := newTestingExecutor(nil)
+	m := ex.Metrics().ForCommand("FooCommand")
+
+	cmd := NewFooCommand("foo", "")
+	ex.Exec(ctx, cmd)
+	assert.Equal(t, 1, m.TotalRequests())
+	assert.Equal(t, 0, m.ErrorCount())
+
+	cmd2 := NewFooCommand("panic", "none")
+	ex.Exec(ctx, cmd2)
+	assert.Equal(t, 2, m.TotalRequests())
+	assert.Equal(t, 1, m.ErrorCount())
+
+	cmd3 := NewFooCommand("error", "panic")
+	ex.Exec(ctx, cmd3)
+	assert.Equal(t, 3, m.TotalRequests())
+	assert.Equal(t, 2, m.ErrorCount())
+}

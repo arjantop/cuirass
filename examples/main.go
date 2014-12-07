@@ -2,15 +2,19 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"log"
 	"math/big"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"time"
 
 	"code.google.com/p/go.net/context"
 	"github.com/arjantop/cuirass"
 	"github.com/arjantop/cuirass/examples/commands"
+	"github.com/arjantop/cuirass/metrics"
 	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
 	"github.com/arjantop/vaquita"
@@ -19,6 +23,7 @@ import (
 func main() {
 	rand.Seed(time.Now().UnixNano())
 	executor := cuirass.NewExecutor(vaquita.NewEmptyMapConfig())
+	monitorMetrics(executor)
 	for {
 		ctx := requestlog.WithRequestLog(requestcache.WithRequestCache(context.Background()))
 
@@ -26,6 +31,31 @@ func main() {
 
 		log.Printf("Request => %s", requestlog.FromContext(ctx).String())
 	}
+}
+
+func monitorMetrics(exec *cuirass.Executor) {
+	timer := time.NewTimer(5 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-timer.C:
+				var b bytes.Buffer
+				for _, m := range exec.Metrics().All() {
+					b.WriteString("# " + m.CommandName() + ": " + commandMetricsAsString(m))
+					b.WriteString("\n")
+				}
+				fmt.Println(b.String())
+				timer.Reset(5 * time.Second)
+			}
+		}
+	}()
+}
+
+func commandMetricsAsString(m *metrics.CommandMetrics) string {
+	var b bytes.Buffer
+	b.WriteString("Requests: " + strconv.Itoa(m.TotalRequests()))
+	b.WriteString(" Errors: " + strconv.Itoa(m.ErrorCount()) + " (" + strconv.Itoa(m.ErrorPercentage()) + "%)")
+	return b.String()
 }
 
 func simulateRequest(executor *cuirass.Executor, ctx context.Context) {

@@ -8,30 +8,38 @@ import (
 	"code.google.com/p/go.net/context"
 
 	"github.com/arjantop/cuirass/circuitbreaker"
+	"github.com/arjantop/cuirass/metrics"
 	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
 	"github.com/arjantop/cuirass/util"
 	"github.com/arjantop/vaquita"
 )
 
-var UnknownPanic = errors.New("Unknown panic")
-
-var DefaultRequestTimeout time.Duration = time.Second
+var UnknownPanic = errors.New("unknown panic")
 
 // Executor is a main service that knows how to execute commands and handle
 // their errors.
 // Executor is safe to be accessed by multiple threads.
 type Executor struct {
+	clock           util.Clock
 	cfg             vaquita.DynamicConfig
 	circuitBreakers cbMap
+	metrics         *metrics.ExecutionMetrics
 }
 
 // NewExecutor constructs a new empty executor.
 func NewExecutor(cfg vaquita.DynamicConfig) *Executor {
+	clock := util.NewClock()
 	return &Executor{
+		clock:           clock,
 		cfg:             cfg,
 		circuitBreakers: newCbMap(),
+		metrics:         metrics.NewExecutionMetrics(clock),
 	}
+}
+
+func (e *Executor) Metrics() *metrics.ExecutionMetrics {
+	return e.metrics
 }
 
 // Exec executes a command and handles command execution errors.
@@ -123,6 +131,7 @@ func (e *executionStats) toExecutionInfo(commandName string) *requestlog.Executi
 
 // logRequest logs a request if the context contains a RequestLogger.
 func (e *Executor) logRequest(ctx context.Context, info *requestlog.ExecutionInfo, props *CommandProperties) {
+	e.metrics.Update(info.CommandName(), info.Result())
 	if logger := requestlog.FromContext(ctx); props.RequestLogEnabled.Get() && logger != nil {
 		logger.AddExecutionInfo(info)
 	}
@@ -193,7 +202,7 @@ func (e *Executor) getCircuitBreakerForCommand(cmd *Command) *circuitbreaker.Cir
 	if cb, ok := e.circuitBreakers.get(cmd.Name()); ok {
 		return cb
 	} else {
-		cb := circuitbreaker.New(cmd.Properties(e.cfg).CircuitBreaker, util.NewClock())
+		cb := circuitbreaker.New(cmd.Properties(e.cfg).CircuitBreaker, e.clock)
 		e.circuitBreakers.set(cmd.Name(), cb)
 		return cb
 	}
