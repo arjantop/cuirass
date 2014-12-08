@@ -67,3 +67,34 @@ func TestCommandMetricsErrorPercentage(t *testing.T) {
 	em.Update("cmd1", requestlog.Success)
 	assert.Equal(t, 50, m.ErrorPercentage())
 }
+
+func TestCommandMetricsRollingSum(t *testing.T) {
+	em := newTestingExecutionMetrics()
+
+	addEventAndAssertRollingSum(t, em, "c", requestlog.Success, 1)
+	addEventAndAssertRollingSum(t, em, "c", requestlog.Failure, 1)
+	addEventAndAssertRollingSum(t, em, "c", requestlog.Timeout, 1)
+	addEventAndAssertRollingSum(t, em, "c", requestlog.ShortCircuited, 1)
+	addEventAndAssertRollingSum(t, em, "c", requestlog.FallbackSuccess, 1)
+	addEventAndAssertRollingSum(t, em, "c", requestlog.FallbackFailure, 1)
+	addEventAndAssertRollingSum(t, em, "c", requestlog.ResponseFromCache, 1)
+
+	addEventAndAssertRollingSum(t, em, "c", requestlog.Success, 2)
+	addEventAndAssertRollingSum(t, em, "c", requestlog.Success, 3)
+	addEventAndAssertRollingSum(t, em, "c", requestlog.Failure, 2)
+}
+
+func addEventAndAssertRollingSum(t *testing.T, em *metrics.ExecutionMetrics, name string, e requestlog.ExecutionEvent, expected int) {
+	em.Update(name, e)
+	m := em.ForCommand(name)
+	assert.Equal(t, expected, m.RollingSum(e))
+}
+
+func TestExecutionMetricsMultipleEvents(t *testing.T) {
+	em := newTestingExecutionMetrics()
+	em.Update("command", requestlog.Failure, requestlog.FallbackSuccess, requestlog.ResponseFromCache)
+	m := em.ForCommand("command")
+	assert.Equal(t, 1, m.RollingSum(requestlog.Failure))
+	assert.Equal(t, 1, m.RollingSum(requestlog.FallbackSuccess))
+	assert.Equal(t, 1, m.RollingSum(requestlog.ResponseFromCache))
+}

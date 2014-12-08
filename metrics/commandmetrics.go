@@ -10,16 +10,16 @@ import (
 
 type CommandMetrics struct {
 	name          string
-	totalRequests *num.RollingNumber
-	errorCount    *num.RollingNumber
+	eventCounters map[requestlog.ExecutionEvent]*num.RollingNumber
+	clock         util.Clock
 	lock          *sync.RWMutex
 }
 
 func newCommandMetrics(clock util.Clock, name string) *CommandMetrics {
 	return &CommandMetrics{
 		name:          name,
-		totalRequests: newRollingNumber(clock),
-		errorCount:    newRollingNumber(clock),
+		eventCounters: make(map[requestlog.ExecutionEvent]*num.RollingNumber),
+		clock:         clock,
 		lock:          new(sync.RWMutex),
 	}
 }
@@ -34,35 +34,48 @@ func (m *CommandMetrics) CommandName() string {
 	return m.name
 }
 
-func (m *CommandMetrics) incTotalRequests() {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	m.totalRequests.Increment()
-}
-
 func (m *CommandMetrics) TotalRequests() int {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
-	return int(m.totalRequests.Sum())
-}
-
-func (m *CommandMetrics) incErrorCount() {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	m.errorCount.Increment()
+	successCount := m.RollingSum(requestlog.Success)
+	failureCount := m.RollingSum(requestlog.Failure)
+	timeoutCount := m.RollingSum(requestlog.Timeout)
+	shortCircuitedCount := m.RollingSum(requestlog.ShortCircuited)
+	return successCount + failureCount + shortCircuitedCount + timeoutCount
 }
 
 func (m *CommandMetrics) ErrorCount() int {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
-	return int(m.errorCount.Sum())
+	failureCount := m.RollingSum(requestlog.Failure)
+	timeoutCount := m.RollingSum(requestlog.Timeout)
+	shortCircuitedCount := m.RollingSum(requestlog.ShortCircuited)
+	return failureCount + shortCircuitedCount + timeoutCount
 }
 
 func (m *CommandMetrics) ErrorPercentage() int {
-	if m.TotalRequests() == 0 {
+	total := m.TotalRequests()
+	if total == 0 {
 		return 0
 	}
-	return int(float64(m.ErrorCount()) / float64(m.TotalRequests()) * 100)
+	return int(float64(m.ErrorCount()) / float64(total) * 100)
+}
+
+func (m *CommandMetrics) incEventCount(e requestlog.ExecutionEvent) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if c, ok := m.eventCounters[e]; ok {
+		c.Increment()
+	} else {
+		c := newRollingNumber(m.clock)
+		c.Increment()
+		m.eventCounters[e] = c
+	}
+}
+
+func (m *CommandMetrics) RollingSum(e requestlog.ExecutionEvent) int {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if c, ok := m.eventCounters[e]; ok {
+		return int(c.Sum())
+	}
+	return 0
 }
 
 type ExecutionMetrics struct {
@@ -93,12 +106,11 @@ func (m *ExecutionMetrics) ForCommand(name string) *CommandMetrics {
 	return m.fetchMetrics(name)
 }
 
-func (m *ExecutionMetrics) Update(name string, result requestlog.ExecutionEvent) {
+func (m *ExecutionMetrics) Update(name string, evs ...requestlog.ExecutionEvent) {
 	metrics := m.fetchMetrics(name)
-	if result != requestlog.Success {
-		metrics.incErrorCount()
+	for _, e := range evs {
+		metrics.incEventCount(e)
 	}
-	metrics.incTotalRequests()
 }
 
 func (m *ExecutionMetrics) fetchMetrics(name string) *CommandMetrics {

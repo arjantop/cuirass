@@ -261,7 +261,7 @@ func TestExecTimesOut(t *testing.T) {
 }
 
 func NewCachableCommand(s, f, key string) *cuirass.Command {
-	return cuirass.NewCommand("FooCommand", func(ctx context.Context) (interface{}, error) {
+	return cuirass.NewCommand("Cachable", func(ctx context.Context) (interface{}, error) {
 		if s == "error" {
 			return nil, errors.New("foo")
 		}
@@ -304,7 +304,7 @@ func assertCommandFromCache(t *testing.T, ex *cuirass.Executor, ctx context.Cont
 	assert.Equal(t, "foo", r)
 
 	request := requestlog.FromContext(ctx).LastRequest()
-	assert.Equal(t, "FooCommand", request.CommandName())
+	assert.Equal(t, "Cachable", request.CommandName())
 	assert.Equal(t, 0, request.ExecutionTime())
 	assert.Equal(t,
 		[]requestlog.ExecutionEvent{requestlog.Success, requestlog.ResponseFromCache},
@@ -404,7 +404,7 @@ func TestExecNonCacheableCommandNotCached(t *testing.T) {
 }
 
 func TestExecutorMetricsAreUpdated(t *testing.T) {
-	ctx := context.Background()
+	ctx := requestcache.WithRequestCache(context.Background())
 	ex := newTestingExecutor(nil)
 	m := ex.Metrics().ForCommand("FooCommand")
 
@@ -412,14 +412,26 @@ func TestExecutorMetricsAreUpdated(t *testing.T) {
 	ex.Exec(ctx, cmd)
 	assert.Equal(t, 1, m.TotalRequests())
 	assert.Equal(t, 0, m.ErrorCount())
+	assert.Equal(t, 1, m.RollingSum(requestlog.Success))
 
-	cmd2 := NewFooCommand("panic", "none")
+	cmd2 := NewFooCommand("panic", "response")
 	ex.Exec(ctx, cmd2)
 	assert.Equal(t, 2, m.TotalRequests())
 	assert.Equal(t, 1, m.ErrorCount())
+	assert.Equal(t, 1, m.RollingSum(requestlog.Failure))
+	assert.Equal(t, 1, m.RollingSum(requestlog.FallbackSuccess))
 
 	cmd3 := NewFooCommand("error", "panic")
 	ex.Exec(ctx, cmd3)
 	assert.Equal(t, 3, m.TotalRequests())
 	assert.Equal(t, 2, m.ErrorCount())
+	assert.Equal(t, 2, m.RollingSum(requestlog.Failure))
+	assert.Equal(t, 1, m.RollingSum(requestlog.FallbackFailure))
+
+	m2 := ex.Metrics().ForCommand("Cachable")
+	cmd4 := NewCachableCommand("foo", "", "a")
+	ex.Exec(ctx, cmd4)
+	ex.Exec(ctx, cmd4)
+
+	assert.Equal(t, 1, m2.RollingSum(requestlog.ResponseFromCache))
 }
