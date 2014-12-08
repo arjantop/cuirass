@@ -43,7 +43,7 @@ func TestRollingNumberIncrement(t *testing.T) {
 }
 
 func TestRollingNumberSumInWindow(t *testing.T) {
-	clock := util.NewTestabeClock(time.Now())
+	clock := util.NewTestableClock(time.Now())
 	n := newTestingRollingNumber(clock)
 	n.Increment()
 	clock.Add(time.Millisecond)
@@ -57,7 +57,7 @@ func TestRollingNumberSumInWindow(t *testing.T) {
 }
 
 func TestRollingNumberReset(t *testing.T) {
-	clock := util.NewTestabeClock(time.Now())
+	clock := util.NewTestableClock(time.Now())
 	n := newTestingRollingNumber(clock)
 	n.Increment()
 	clock.Add(time.Millisecond)

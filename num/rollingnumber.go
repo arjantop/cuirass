@@ -42,6 +42,7 @@ func NewRollingNumber(windowSize time.Duration, windowBuckets uint, clock util.C
 // and number of buckets. The smallest bucket size is 1 millisecond.`
 // Actual window size can be larger if the requested number of buckets does not fit in
 // the window size.
+// TODO: move to separate file
 func calculateBucketSize(windowSize time.Duration, windowBuckets uint) time.Duration {
 	bucketSize := windowSize / time.Duration(windowBuckets)
 	if bucketSize < time.Millisecond {

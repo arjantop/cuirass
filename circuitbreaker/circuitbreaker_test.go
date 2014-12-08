@@ -69,7 +69,7 @@ func TestCircuitBreakerOpenAfterErrorThreshold(t *testing.T) {
 func TestCircuitBreakerClosesOnTrialSuccess(t *testing.T) {
 	cfg := vaquita.NewEmptyMapConfig()
 	cfg.SetProperty("requestThreshold", "1")
-	clock := util.NewTestabeClock(time.Now())
+	clock := util.NewTestableClock(time.Now())
 	cb := newTestingCircuitBreaker(cfg, clock)
 
 	// Trip the breaker.
@@ -98,7 +98,7 @@ func TestCircuitBreakerClosesOnTrialSuccess(t *testing.T) {
 func TestCircuitBreakerStaysOpenOnTrialFailure(t *testing.T) {
 	cfg := vaquita.NewEmptyMapConfig()
 	cfg.SetProperty("requestThreshold", "1")
-	clock := util.NewTestabeClock(time.Now())
+	clock := util.NewTestableClock(time.Now())
 	cb := newTestingCircuitBreaker(cfg, clock)
 
 	// Trip the breaker.

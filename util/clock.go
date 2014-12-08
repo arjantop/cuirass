@@ -20,7 +20,7 @@ type TestableClock struct {
 	now time.Time
 }
 
-func NewTestabeClock(now time.Time) *TestableClock {
+func NewTestableClock(now time.Time) *TestableClock {
 	return &TestableClock{
 		now: now,
 	}
