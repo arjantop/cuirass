@@ -113,8 +113,10 @@ func TestExecutionMetricsExecutionTimePercentile(t *testing.T) {
 	m := em.ForCommand("command")
 	em.Update("command", 5*time.Millisecond, requestlog.Failure, requestlog.FallbackSuccess)
 	assert.Equal(t, 5*time.Millisecond, m.ExecutionTimePercentile(100))
+	assert.Equal(t, 5*time.Millisecond, m.ExecutionTimeMean())
 	em.Update("command", 10*time.Millisecond, requestlog.Failure, requestlog.FallbackSuccess)
 	assert.Equal(t, 10*time.Millisecond, m.ExecutionTimePercentile(100))
+	assert.Equal(t, 7500*time.Microsecond, m.ExecutionTimeMean())
 	em.Update("command", 0, requestlog.Failure, requestlog.FallbackSuccess, requestlog.ResponseFromCache)
 	assert.Equal(t, 5*time.Millisecond, m.ExecutionTimePercentile(0))
 }

@@ -66,21 +66,27 @@ func TestRollingPercentileInWindow(t *testing.T) {
 
 	addAll(rp, 1)
 	assert.Equal(t, 1, rp.Get(100))
+	assert.Equal(t, 1, rp.Mean())
 	clock.Add(time.Millisecond)
 	addAll(rp, 3)
 	assert.Equal(t, 3, rp.Get(100))
+	assert.Equal(t, 2, rp.Mean())
 	clock.Add(time.Millisecond)
 	addAll(rp, 2)
 	assert.Equal(t, 3, rp.Get(100))
+	assert.Equal(t, 2, rp.Mean())
 	clock.Add(time.Millisecond)
 	assert.Equal(t, 2, rp.Get(0))
 	assert.Equal(t, 3, rp.Get(100), "The value 3 is still in the window")
+	assert.Equal(t, 2, rp.Mean())
 	clock.Add(time.Millisecond)
 	assert.Equal(t, 2, rp.Get(0))
 	assert.Equal(t, 2, rp.Get(100))
+	assert.Equal(t, 2, rp.Mean())
 	clock.Add(time.Millisecond)
 	assert.Equal(t, 0, rp.Get(0))
 	assert.Equal(t, 0, rp.Get(100))
+	assert.Equal(t, 0, rp.Mean())
 }
 
 func addAll(rp *num.RollingPercentile, vs ...int) {

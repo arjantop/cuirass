@@ -95,6 +95,10 @@ func (m *CommandMetrics) RollingSum(e requestlog.ExecutionEvent) int {
 	return 0
 }
 
+func (m *CommandMetrics) ExecutionTimeMean() time.Duration {
+	return time.Duration(m.executionTime.Mean())
+}
+
 func (m *CommandMetrics) ExecutionTimePercentile(p float64) time.Duration {
 	return time.Duration(m.executionTime.Get(p))
 }

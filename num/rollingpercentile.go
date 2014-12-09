@@ -73,6 +73,26 @@ func (p *RollingPercentile) Get(percentile float64) int {
 	return calculatePercentile(percentile, values)
 }
 
+// TODO: cache the calculation.
+func (p *RollingPercentile) Mean() int {
+	// Update the current bucket.
+	p.findCurrentBucket()
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	count := int64(0)
+	sum := int64(0)
+	for _, b := range p.buckets {
+		for _, v := range b.values() {
+			count += 1
+			sum += int64(v)
+		}
+	}
+	if count == 0 {
+		return 0
+	}
+	return int(sum / count)
+}
+
 // TODO: Use the method with interpolation
 func calculatePercentile(p float64, values []int) int {
 	if len(values) == 0 {
