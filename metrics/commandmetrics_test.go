@@ -2,6 +2,7 @@ package metrics_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/arjantop/cuirass/metrics"
 	"github.com/arjantop/cuirass/requestlog"
@@ -41,7 +42,7 @@ func TestCommandMetricsSeparatePerCommand(t *testing.T) {
 }
 
 func addEventAndAssertCount(t *testing.T, em *metrics.ExecutionMetrics, name string, e requestlog.ExecutionEvent, rc, ec int) {
-	em.Update(name, e)
+	em.Update(name, 0, e)
 	m := em.ForCommand(name)
 	assert.Equal(t, rc, m.TotalRequests())
 	assert.Equal(t, ec, m.ErrorCount())
@@ -52,19 +53,19 @@ func TestCommandMetricsErrorPercentage(t *testing.T) {
 	m := em.ForCommand("cmd1")
 	assert.Equal(t, 0, m.ErrorPercentage())
 
-	em.Update("cmd1", requestlog.Success)
-	em.Update("cmd1", requestlog.Failure)
-	em.Update("cmd1", requestlog.Timeout)
-	em.Update("cmd1", requestlog.Failure)
-	em.Update("cmd1", requestlog.ShortCircuited)
+	em.Update("cmd1", 0, requestlog.Success)
+	em.Update("cmd1", 0, requestlog.Failure)
+	em.Update("cmd1", 0, requestlog.Timeout)
+	em.Update("cmd1", 0, requestlog.Failure)
+	em.Update("cmd1", 0, requestlog.ShortCircuited)
 
 	assert.Equal(t, 80, m.ErrorPercentage())
 
-	em.Update("cmd1", requestlog.Success)
+	em.Update("cmd1", 0, requestlog.Success)
 	assert.Equal(t, 66, m.ErrorPercentage())
 
-	em.Update("cmd1", requestlog.Success)
-	em.Update("cmd1", requestlog.Success)
+	em.Update("cmd1", 0, requestlog.Success)
+	em.Update("cmd1", 0, requestlog.Success)
 	assert.Equal(t, 50, m.ErrorPercentage())
 }
 
@@ -85,16 +86,35 @@ func TestCommandMetricsRollingSum(t *testing.T) {
 }
 
 func addEventAndAssertRollingSum(t *testing.T, em *metrics.ExecutionMetrics, name string, e requestlog.ExecutionEvent, expected int) {
-	em.Update(name, e)
+	em.Update(name, 0, e)
 	m := em.ForCommand(name)
 	assert.Equal(t, expected, m.RollingSum(e))
 }
 
 func TestExecutionMetricsMultipleEvents(t *testing.T) {
 	em := newTestingExecutionMetrics()
-	em.Update("command", requestlog.Failure, requestlog.FallbackSuccess, requestlog.ResponseFromCache)
+	em.Update("command", 0, requestlog.Failure, requestlog.FallbackSuccess)
 	m := em.ForCommand("command")
 	assert.Equal(t, 1, m.RollingSum(requestlog.Failure))
 	assert.Equal(t, 1, m.RollingSum(requestlog.FallbackSuccess))
+}
+
+func TestExecutionMetricsResponseFromCache(t *testing.T) {
+	em := newTestingExecutionMetrics()
+	em.Update("command", 0, requestlog.Failure, requestlog.FallbackSuccess, requestlog.ResponseFromCache)
+	m := em.ForCommand("command")
+	assert.Equal(t, 0, m.RollingSum(requestlog.Failure))
+	assert.Equal(t, 0, m.RollingSum(requestlog.FallbackSuccess))
 	assert.Equal(t, 1, m.RollingSum(requestlog.ResponseFromCache))
+}
+
+func TestExecutionMetricsExecutionTimePercentile(t *testing.T) {
+	em := newTestingExecutionMetrics()
+	m := em.ForCommand("command")
+	em.Update("command", 5*time.Millisecond, requestlog.Failure, requestlog.FallbackSuccess)
+	assert.Equal(t, 5*time.Millisecond, m.ExecutionTimePercentile(100))
+	em.Update("command", 10*time.Millisecond, requestlog.Failure, requestlog.FallbackSuccess)
+	assert.Equal(t, 10*time.Millisecond, m.ExecutionTimePercentile(100))
+	em.Update("command", 0, requestlog.Failure, requestlog.FallbackSuccess, requestlog.ResponseFromCache)
+	assert.Equal(t, 5*time.Millisecond, m.ExecutionTimePercentile(0))
 }

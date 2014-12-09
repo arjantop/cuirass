@@ -55,7 +55,14 @@ func commandMetricsAsString(m *metrics.CommandMetrics) string {
 	var b bytes.Buffer
 	b.WriteString("Requests: " + strconv.Itoa(m.TotalRequests()))
 	b.WriteString(" Errors: " + strconv.Itoa(m.ErrorCount()) + " (" + strconv.Itoa(m.ErrorPercentage()) + "%)")
+	b.WriteString(" 75th: " + strconv.Itoa(toMilliseconds(m.ExecutionTimePercentile(75))))
+	b.WriteString(" 90th: " + strconv.Itoa(toMilliseconds(m.ExecutionTimePercentile(90))))
+	b.WriteString(" 99th: " + strconv.Itoa(toMilliseconds(m.ExecutionTimePercentile(99))))
 	return b.String()
+}
+
+func toMilliseconds(d time.Duration) int {
+	return int(d.Nanoseconds() / int64(time.Millisecond))
 }
 
 func simulateRequest(executor *cuirass.Executor, ctx context.Context) {

@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"sync"
+	"time"
 
 	"github.com/arjantop/cuirass/num"
 	"github.com/arjantop/cuirass/requestlog"
@@ -11,6 +12,7 @@ import (
 type CommandMetrics struct {
 	name          string
 	eventCounters map[requestlog.ExecutionEvent]*num.RollingNumber
+	executionTime *num.RollingPercentile
 	clock         util.Clock
 	lock          *sync.RWMutex
 }
@@ -19,6 +21,7 @@ func newCommandMetrics(clock util.Clock, name string) *CommandMetrics {
 	return &CommandMetrics{
 		name:          name,
 		eventCounters: make(map[requestlog.ExecutionEvent]*num.RollingNumber),
+		executionTime: num.NewRollingPercentile(num.DefaultWindowSize, num.DefaultWindowBuckets, clock),
 		clock:         clock,
 		lock:          new(sync.RWMutex),
 	}
@@ -57,16 +60,30 @@ func (m *CommandMetrics) ErrorPercentage() int {
 	return int(float64(m.ErrorCount()) / float64(total) * 100)
 }
 
-func (m *CommandMetrics) incEventCount(e requestlog.ExecutionEvent) {
+func (m *CommandMetrics) update(executionTime time.Duration, evs ...requestlog.ExecutionEvent) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	if c, ok := m.eventCounters[e]; ok {
-		c.Increment()
+	if !isResponseFromCache(evs) {
+		for _, e := range evs {
+			m.findEventCounter(e).Increment()
+		}
+		m.executionTime.Add(int(executionTime))
 	} else {
-		c := newRollingNumber(m.clock)
-		c.Increment()
+		m.findEventCounter(requestlog.ResponseFromCache).Increment()
+	}
+}
+
+func (m *CommandMetrics) findEventCounter(e requestlog.ExecutionEvent) *num.RollingNumber {
+	c, ok := m.eventCounters[e]
+	if !ok {
+		c = newRollingNumber(m.clock)
 		m.eventCounters[e] = c
 	}
+	return c
+}
+
+func isResponseFromCache(events []requestlog.ExecutionEvent) bool {
+	return events[len(events)-1] == requestlog.ResponseFromCache
 }
 
 func (m *CommandMetrics) RollingSum(e requestlog.ExecutionEvent) int {
@@ -76,6 +93,10 @@ func (m *CommandMetrics) RollingSum(e requestlog.ExecutionEvent) int {
 		return int(c.Sum())
 	}
 	return 0
+}
+
+func (m *CommandMetrics) ExecutionTimePercentile(p float64) time.Duration {
+	return time.Duration(m.executionTime.Get(p))
 }
 
 type ExecutionMetrics struct {
@@ -106,11 +127,9 @@ func (m *ExecutionMetrics) ForCommand(name string) *CommandMetrics {
 	return m.fetchMetrics(name)
 }
 
-func (m *ExecutionMetrics) Update(name string, evs ...requestlog.ExecutionEvent) {
+func (m *ExecutionMetrics) Update(name string, executionTime time.Duration, evs ...requestlog.ExecutionEvent) {
 	metrics := m.fetchMetrics(name)
-	for _, e := range evs {
-		metrics.incEventCount(e)
-	}
+	metrics.update(executionTime, evs...)
 }
 
 func (m *ExecutionMetrics) fetchMetrics(name string) *CommandMetrics {

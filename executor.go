@@ -131,7 +131,7 @@ func (e *executionStats) toExecutionInfo(commandName string) *requestlog.Executi
 
 // logRequest logs a request if the context contains a RequestLogger.
 func (e *Executor) logRequest(ctx context.Context, info *requestlog.ExecutionInfo, props *CommandProperties) {
-	e.metrics.Update(info.CommandName(), info.Events()...)
+	e.metrics.Update(info.CommandName(), info.ExecutionTime(), info.Events()...)
 	if logger := requestlog.FromContext(ctx); props.RequestLogEnabled.Get() && logger != nil {
 		logger.AddExecutionInfo(info)
 	}

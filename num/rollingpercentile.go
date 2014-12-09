@@ -75,6 +75,9 @@ func (p *RollingPercentile) Get(percentile float64) int {
 
 // TODO: Use the method with interpolation
 func calculatePercentile(p float64, values []int) int {
+	if len(values) == 0 {
+		return 0
+	}
 	if p <= 0 {
 		return values[0]
 	} else if p >= 100 {
@@ -82,6 +85,9 @@ func calculatePercentile(p float64, values []int) int {
 	}
 	percentileIndex := p / 100.0 * float64(len(values))
 	index := round(percentileIndex)
+	if index > len(values)-1 {
+		index = len(values) - 1
+	}
 	return values[index]
 }
 
@@ -107,7 +113,5 @@ func (b *percentileBucket) values() []int {
 }
 
 func (b *percentileBucket) reset() {
-	for i, _ := range b.vals {
-		b.vals[i] = 0
-	}
+	b.vals = make([]int, 0)
 }

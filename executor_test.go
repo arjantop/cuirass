@@ -434,4 +434,7 @@ func TestExecutorMetricsAreUpdated(t *testing.T) {
 	ex.Exec(ctx, cmd4)
 
 	assert.Equal(t, 1, m2.RollingSum(requestlog.ResponseFromCache))
+	assert.True(t, m2.ExecutionTimePercentile(100) > 0)
+	assert.True(t, m2.ExecutionTimePercentile(50) > 0)
+	assert.True(t, m2.ExecutionTimePercentile(0) > 0)
 }
