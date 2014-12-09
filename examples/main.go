@@ -15,6 +15,7 @@ import (
 	"github.com/arjantop/cuirass"
 	"github.com/arjantop/cuirass/examples/commands"
 	"github.com/arjantop/cuirass/metrics"
+	"github.com/arjantop/cuirass/metricsstream"
 	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
 	"github.com/arjantop/vaquita"
@@ -24,17 +25,19 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 	executor := cuirass.NewExecutor(vaquita.NewEmptyMapConfig())
 	monitorMetrics(executor)
-	for {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		ctx := requestlog.WithRequestLog(requestcache.WithRequestCache(context.Background()))
 
 		simulateRequest(executor, ctx)
 
-		log.Printf("Request => %s", requestlog.FromContext(ctx).String())
-	}
+		fmt.Fprintf(w, "Request => %s\n", requestlog.FromContext(ctx).String())
+	})
+	http.Handle("/cuirass.stream", metricsstream.NewMetricsStream(executor))
+	log.Fatal(http.ListenAndServe(":8989", nil))
 }
 
 func monitorMetrics(exec *cuirass.Executor) {
-	timer := time.NewTimer(5 * time.Second)
+	timer := time.NewTimer(10 * time.Second)
 	go func() {
 		for {
 			select {
@@ -45,7 +48,7 @@ func monitorMetrics(exec *cuirass.Executor) {
 					b.WriteString("\n")
 				}
 				fmt.Println(b.String())
-				timer.Reset(5 * time.Second)
+				timer.Reset(10 * time.Second)
 			}
 		}
 	}()
