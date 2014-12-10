@@ -30,7 +30,7 @@ func (h *MetricsStream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintln(w, "ping: ")
 		} else {
 			for _, m := range metrics {
-				fmt.Fprintf(w, "data: %s\n\n", metricsToJson(m))
+				fmt.Fprintf(w, "data: %s\n\n", h.metricsToJson(m))
 			}
 		}
 		if f, ok := w.(http.Flusher); ok {
@@ -42,7 +42,7 @@ func (h *MetricsStream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func metricsToJson(m *metrics.CommandMetrics) []byte {
+func (h *MetricsStream) metricsToJson(m *metrics.CommandMetrics) []byte {
 	bytes, _ := json.Marshal(struct {
 		Type                                                     string         `json:"type"`
 		Name                                                     string         `json:"name"`
@@ -88,7 +88,7 @@ func metricsToJson(m *metrics.CommandMetrics) []byte {
 		m.CommandName(),
 		m.CommandName(),
 		int(time.Now().UnixNano() / 1000000),
-		false,
+		h.executor.IsCircuitBreakerOpen(m.CommandName()),
 		m.ErrorPercentage(),
 		m.ErrorCount(),
 		m.TotalRequests(),

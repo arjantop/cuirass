@@ -189,12 +189,14 @@ func TestExecFailuresTripCircuitBreaker(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("error", "none")
 	ex := newTestingExecutor(nil)
+	assert.False(t, ex.IsCircuitBreakerOpen("FooCommand"))
 	for i := 0; i < 20; i++ {
 		_, err := ex.Exec(ctx, cmd)
 		assert.Equal(t, errors.New("foo"), err)
 	}
 	_, err := ex.Exec(ctx, cmd)
 	assert.Equal(t, circuitbreaker.CircuitOpenError, err)
+	assert.True(t, ex.IsCircuitBreakerOpen("FooCommand"))
 
 	request := requestlog.FromContext(ctx).LastRequest()
 	assert.Equal(t, "FooCommand", request.CommandName())

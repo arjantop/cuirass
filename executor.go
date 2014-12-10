@@ -42,6 +42,13 @@ func (e *Executor) Metrics() *metrics.ExecutionMetrics {
 	return e.metrics
 }
 
+func (e *Executor) IsCircuitBreakerOpen(cmdName string) bool {
+	if cb, ok := e.circuitBreakers.get(cmdName); ok {
+		return cb.IsOpen()
+	}
+	return false
+}
+
 // Exec executes a command and handles command execution errors.
 // If command fails with an error or panics Fallback function with fallback logic
 // is executed. Every command execution is guarded by an internal circuit-breaker.
