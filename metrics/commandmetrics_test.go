@@ -117,6 +117,22 @@ func TestExecutionMetricsExecutionTimePercentile(t *testing.T) {
 	em.Update("command", 10*time.Millisecond, requestlog.Failure, requestlog.FallbackSuccess)
 	assert.Equal(t, 10*time.Millisecond, m.ExecutionTimePercentile(100))
 	assert.Equal(t, 7500*time.Microsecond, m.ExecutionTimeMean())
+}
+
+func TestExecutionMetricsIgoreExecutionTimeOfEvents(t *testing.T) {
+	em := newTestingExecutionMetrics()
+	m := em.ForCommand("command")
+	em.Update("command", 10, requestlog.ResponseFromCache)
+	assert.Equal(t, 0, m.ExecutionTimePercentile(100))
+	em.Update("command", 20, requestlog.ShortCircuited)
+	assert.Equal(t, 0, m.ExecutionTimePercentile(100))
+}
+
+func TestExecutionMetricsIgoreEventsWhenResponseFromCache(t *testing.T) {
+	em := newTestingExecutionMetrics()
+	m := em.ForCommand("command")
 	em.Update("command", 0, requestlog.Failure, requestlog.FallbackSuccess, requestlog.ResponseFromCache)
-	assert.Equal(t, 5*time.Millisecond, m.ExecutionTimePercentile(0))
+	assert.Equal(t, 0, m.RollingSum(requestlog.Failure))
+	assert.Equal(t, 0, m.RollingSum(requestlog.FallbackSuccess))
+	assert.Equal(t, 1, m.RollingSum(requestlog.ResponseFromCache))
 }

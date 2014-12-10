@@ -63,13 +63,15 @@ func (m *CommandMetrics) ErrorPercentage() int {
 func (m *CommandMetrics) update(executionTime time.Duration, evs ...requestlog.ExecutionEvent) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	if !isResponseFromCache(evs) {
+	if hasEvent(evs, requestlog.ResponseFromCache) {
+		m.findEventCounter(requestlog.ResponseFromCache).Increment()
+	} else if hasEvent(evs, requestlog.ShortCircuited) {
+		m.findEventCounter(requestlog.ShortCircuited).Increment()
+	} else {
 		for _, e := range evs {
 			m.findEventCounter(e).Increment()
 		}
 		m.executionTime.Add(int(executionTime))
-	} else {
-		m.findEventCounter(requestlog.ResponseFromCache).Increment()
 	}
 }
 
@@ -82,8 +84,13 @@ func (m *CommandMetrics) findEventCounter(e requestlog.ExecutionEvent) *num.Roll
 	return c
 }
 
-func isResponseFromCache(events []requestlog.ExecutionEvent) bool {
-	return events[len(events)-1] == requestlog.ResponseFromCache
+func hasEvent(events []requestlog.ExecutionEvent, e requestlog.ExecutionEvent) bool {
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i] == e {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *CommandMetrics) RollingSum(e requestlog.ExecutionEvent) int {

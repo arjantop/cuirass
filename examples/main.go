@@ -25,7 +25,7 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 	executor := cuirass.NewExecutor(vaquita.NewEmptyMapConfig())
 	monitorMetrics(executor)
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/payment", func(w http.ResponseWriter, r *http.Request) {
 		ctx := requestlog.WithRequestLog(requestcache.WithRequestCache(context.Background()))
 
 		simulateRequest(executor, ctx)

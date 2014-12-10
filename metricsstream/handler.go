@@ -38,7 +38,7 @@ func (h *MetricsStream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			panic("Flush not supported")
 		}
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(2000 * time.Millisecond)
 	}
 }
 

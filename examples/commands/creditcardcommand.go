@@ -93,7 +93,7 @@ func (g *AuthorizeNetGateway) Submit(
 	amount *big.Rat,
 	order *Order) Result {
 
-	time.Sleep(time.Duration(rand.Intn(700)+800) * time.Millisecond)
+	time.Sleep(time.Duration(rand.Intn(350)+800) * time.Millisecond)
 
 	if rand.Float64() > 0.99 {
 		time.Sleep(time.Duration(8000) * time.Millisecond)
