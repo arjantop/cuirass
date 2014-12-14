@@ -50,7 +50,7 @@ func (c *Command) CacheKey() string {
 }
 
 func (c *Command) Properties(cfg vaquita.DynamicConfig) *CommandProperties {
-	return newCommandProperties(cfg)
+	return newCommandProperties(cfg, c.Name())
 }
 
 // CommandBuilder is a helper used for constructing new Commands.

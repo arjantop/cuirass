@@ -23,7 +23,10 @@ import (
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	executor := cuirass.NewExecutor(vaquita.NewEmptyMapConfig())
+	executor := cuirass.NewExecutor(vaquita.NewMapConfig(map[string]string{
+		"cuirass.command.CreditCardCommand.execution.isolation.thread.timeoutInMilliseconds":     "3000",
+		"cuirass.command.GetUserAccountCommand.execution.isolation.thread.timeoutInMilliseconds": "50",
+	}))
 	monitorMetrics(executor)
 	http.HandleFunc("/payment", func(w http.ResponseWriter, r *http.Request) {
 		ctx := requestlog.WithRequestLog(requestcache.WithRequestCache(context.Background()))

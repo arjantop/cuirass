@@ -29,22 +29,40 @@ const (
 	CircuitBreakerForceClosedDefault              = false
 )
 
-func newCommandProperties(cfg vaquita.DynamicConfig) *CommandProperties {
+func newCommandProperties(cfg vaquita.DynamicConfig, commandName string) *CommandProperties {
 	pf := vaquita.NewPropertyFactory(cfg)
 	propertyPrefix := pf.GetStringProperty("cuirass.config.prefix", "cuirass").Get()
-	cbPrefix := ".command.default.circuitBreaker"
 	return &CommandProperties{
-		ExecutionTimeout:    pf.GetDurationProperty(propertyPrefix+".command.default.execution.isolation.thread.timeoutInMilliseconds", ExecutionTimeoutDefault, time.Millisecond),
-		FallbackEnabled:     pf.GetBoolProperty(propertyPrefix+".command.default.fallback.enabled", FallbackEnabledDefault),
-		RequestCacheEnabled: pf.GetBoolProperty(propertyPrefix+".command.default.requestCache.enabled", RequestCacheEnabledDefault),
-		RequestLogEnabled:   pf.GetBoolProperty(propertyPrefix+".command.default.requestLog.enabled", RequestLogEnabledDefault),
+		ExecutionTimeout:    newDurationProperty(pf, propertyPrefix+".command", commandName, "execution.isolation.thread.timeoutInMilliseconds", ExecutionTimeoutDefault),
+		FallbackEnabled:     newBoolProperty(pf, propertyPrefix+".command", commandName, "fallback.enabled", FallbackEnabledDefault),
+		RequestCacheEnabled: newBoolProperty(pf, propertyPrefix+".command", commandName, "requestCache.enabled", RequestCacheEnabledDefault),
+		RequestLogEnabled:   newBoolProperty(pf, propertyPrefix+".command", commandName, "requestLog.enabled", RequestLogEnabledDefault),
 		CircuitBreaker: &circuitbreaker.CircuitBreakerProperties{
-			Enabled:                  pf.GetBoolProperty(propertyPrefix+cbPrefix+".enabled", CircuitBreakerEnabledDefault),
-			RequestVolumeThreshold:   pf.GetIntProperty(propertyPrefix+cbPrefix+".requestVolumeThreshold", CircuitBreakerRequestVolumeThresholdDefault),
-			SleepWindow:              pf.GetIntProperty(propertyPrefix+cbPrefix+".sleepWindowInMilliseconds", CircuitBreakerSleepWindowDefault),
-			ErrorThresholdPercentage: pf.GetIntProperty(propertyPrefix+cbPrefix+".errorThresholdPercentage", CircuitBreakerErrorThresholdPercentageDefault),
-			ForceOpen:                pf.GetBoolProperty(propertyPrefix+cbPrefix+".forceOpen", CircuitBreakerForceOpenDefault),
-			ForceClosed:              pf.GetBoolProperty(propertyPrefix+cbPrefix+".forceClosed", CircuitBreakerForceClosedDefault),
+			Enabled:                  newBoolProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.enabled", CircuitBreakerEnabledDefault),
+			RequestVolumeThreshold:   newIntProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.requestVolumeThreshold", CircuitBreakerRequestVolumeThresholdDefault),
+			SleepWindow:              newIntProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.sleepWindowInMilliseconds", CircuitBreakerSleepWindowDefault),
+			ErrorThresholdPercentage: newIntProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.errorThresholdPercentage", CircuitBreakerErrorThresholdPercentageDefault),
+			ForceOpen:                newBoolProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.forceOpen", CircuitBreakerForceOpenDefault),
+			ForceClosed:              newBoolProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.forceClosed", CircuitBreakerForceClosedDefault),
 		},
 	}
+}
+
+func newBoolProperty(f *vaquita.PropertyFactory, prefix, commandName, propertyName string, defaultValue bool) vaquita.BoolProperty {
+	return vaquita.NewChainedBoolProperty(f,
+		prefix+"."+commandName+"."+propertyName,
+		f.GetBoolProperty(prefix+".default."+propertyName, defaultValue))
+}
+
+func newIntProperty(f *vaquita.PropertyFactory, prefix, commandName, propertyName string, defaultValue int) vaquita.IntProperty {
+	return vaquita.NewChainedIntProperty(f,
+		prefix+"."+commandName+"."+propertyName,
+		f.GetIntProperty(prefix+".default."+propertyName, defaultValue))
+}
+
+func newDurationProperty(f *vaquita.PropertyFactory, prefix, commandName, propertyName string, defaultValue time.Duration) vaquita.DurationProperty {
+	return vaquita.NewChainedDurationProperty(f,
+		prefix+"."+commandName+"."+propertyName,
+		time.Millisecond,
+		f.GetDurationProperty(prefix+".default."+propertyName, defaultValue, time.Millisecond))
 }
