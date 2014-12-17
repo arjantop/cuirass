@@ -22,6 +22,9 @@ const (
 	// ShortCircuited event happens when the circuit breaker for the command
 	// is closed.
 	ShortCircuited
+	// SemaphoreRejected event happens if there are too many concurrent requests
+	// for the executed commands.
+	SemaphoreRejected
 	// ResponseFromCache event happens when the response for the command came
 	// from previously executed command cache.
 	ResponseFromCache
@@ -45,6 +48,8 @@ func (e ExecutionEvent) String() (s string) {
 		s = "TIMEOUT"
 	case ShortCircuited:
 		s = "SHORT_CIRCUITED"
+	case SemaphoreRejected:
+		s = "SEMAPHORE_REJECTED"
 	case ResponseFromCache:
 		s = "RESPONSE_FROM_CACHE"
 	case FallbackSuccess:

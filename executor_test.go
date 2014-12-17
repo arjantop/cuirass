@@ -235,20 +235,23 @@ func TestExecRequestLogDisabled(t *testing.T) {
 	assert.Equal(t, 0, log.Size())
 }
 
-func NewTimeoutCommand() *cuirass.Command {
+func NewTimeoutCommand(c <-chan time.Time, group string) *cuirass.Command {
+	if c == nil {
+		c = time.After(time.Second)
+	}
 	return cuirass.NewCommand("TimeoutCommand", func(ctx context.Context) (interface{}, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(time.Second):
+		case <-c:
 			return 0, nil
 		}
-	}).Build()
+	}).Group(group).Build()
 }
 
 func TestExecTimesOut(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
-	cmd := NewTimeoutCommand()
+	cmd := NewTimeoutCommand(nil, "Group")
 	cfg := vaquita.NewEmptyMapConfig()
 	cfg.SetProperty("cuirass.command.default.execution.isolation.thread.timeoutInMilliseconds", "1")
 	ex := cuirass.NewExecutor(cfg)
@@ -260,6 +263,37 @@ func TestExecTimesOut(t *testing.T) {
 	assert.Equal(t,
 		[]requestlog.ExecutionEvent{requestlog.Timeout},
 		request.Events())
+}
+
+func TestExecSemaphoreRejected(t *testing.T) {
+	ctx := requestlog.WithRequestLog(context.Background())
+
+	cfg := vaquita.NewEmptyMapConfig()
+	cfg.SetProperty("cuirass.command.default.execution.isolation.semaphore.maxConcurrentRequests", "1")
+	ex := cuirass.NewExecutor(cfg)
+
+	c1 := make(chan time.Time)
+	cmd1 := NewTimeoutCommand(c1, "FooCommand")
+	go ex.Exec(ctx, cmd1)
+	time.Sleep(time.Millisecond)
+
+	cmd2 := NewFooCommand("foo", "none")
+	_, err := ex.Exec(ctx, cmd2)
+	assert.Equal(t, cuirass.SemaphoreRejected, err)
+
+	request := requestlog.FromContext(ctx).LastRequest()
+	assert.Equal(t, "FooCommand", request.CommandName())
+	assert.Equal(t,
+		[]requestlog.ExecutionEvent{requestlog.SemaphoreRejected},
+		request.Events())
+
+	c1 <- time.Now()
+	time.Sleep(time.Millisecond)
+
+	cmd3 := NewFooCommand("foo", "none")
+	r, err := ex.Exec(ctx, cmd3)
+	assert.NoError(t, err)
+	assert.Equal(t, "foo", r)
 }
 
 func NewCachableCommand(s, f, key string) *cuirass.Command {

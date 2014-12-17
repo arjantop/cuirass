@@ -42,14 +42,16 @@ func (m *CommandMetrics) TotalRequests() int {
 	failureCount := m.RollingSum(requestlog.Failure)
 	timeoutCount := m.RollingSum(requestlog.Timeout)
 	shortCircuitedCount := m.RollingSum(requestlog.ShortCircuited)
-	return successCount + failureCount + shortCircuitedCount + timeoutCount
+	semaphoreRejected := m.RollingSum(requestlog.SemaphoreRejected)
+	return successCount + failureCount + shortCircuitedCount + timeoutCount + semaphoreRejected
 }
 
 func (m *CommandMetrics) ErrorCount() int {
 	failureCount := m.RollingSum(requestlog.Failure)
 	timeoutCount := m.RollingSum(requestlog.Timeout)
 	shortCircuitedCount := m.RollingSum(requestlog.ShortCircuited)
-	return failureCount + shortCircuitedCount + timeoutCount
+	semaphoreRejected := m.RollingSum(requestlog.SemaphoreRejected)
+	return failureCount + shortCircuitedCount + timeoutCount + semaphoreRejected
 }
 
 func (m *CommandMetrics) ErrorPercentage() int {
@@ -65,13 +67,13 @@ func (m *CommandMetrics) update(executionTime time.Duration, evs ...requestlog.E
 	defer m.lock.Unlock()
 	if hasEvent(evs, requestlog.ResponseFromCache) {
 		m.findEventCounter(requestlog.ResponseFromCache).Increment()
-	} else if hasEvent(evs, requestlog.ShortCircuited) {
-		m.findEventCounter(requestlog.ShortCircuited).Increment()
 	} else {
 		for _, e := range evs {
 			m.findEventCounter(e).Increment()
 		}
-		m.executionTime.Add(int(executionTime))
+		if !hasEvent(evs, requestlog.ShortCircuited) && !hasEvent(evs, requestlog.SemaphoreRejected) {
+			m.executionTime.Add(int(executionTime))
+		}
 	}
 }
 

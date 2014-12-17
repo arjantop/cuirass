@@ -15,7 +15,10 @@ import (
 	"github.com/arjantop/vaquita"
 )
 
-var UnknownPanic = errors.New("unknown panic")
+var (
+	UnknownPanic      = errors.New("unknown panic")
+	SemaphoreRejected = errors.New("semaphore rejected")
+)
 
 // Executor is a main service that knows how to execute commands and handle
 // their errors.
@@ -24,6 +27,7 @@ type Executor struct {
 	clock           util.Clock
 	cfg             vaquita.DynamicConfig
 	circuitBreakers cbMap
+	semaphores      *SemaphoreFactory
 	metrics         *metrics.ExecutionMetrics
 }
 
@@ -34,6 +38,7 @@ func NewExecutor(cfg vaquita.DynamicConfig) *Executor {
 		clock:           clock,
 		cfg:             cfg,
 		circuitBreakers: newCbMap(),
+		semaphores:      NewSemaphoreFactory(),
 		metrics:         metrics.NewExecutionMetrics(clock),
 	}
 }
@@ -91,9 +96,14 @@ func (e *Executor) Exec(ctx context.Context, cmd *Command) (result interface{}, 
 	cb := e.getCircuitBreakerForCommand(cmd)
 	// Execute the command in the context of its circuit-breaker.
 	err = cb.Do(func() error {
-		rr, rerr := cmd.Run(ctx)
-		result = rr
-		return rerr
+		s := e.semaphores.Get(cmd.Group(), cmd.Properties(e.cfg).ExecutionMaxConcurrentRequests.Get())
+		if ok := s.TryAcquire(); ok {
+			defer s.Release()
+			rr, rerr := cmd.Run(ctx)
+			result = rr
+			return rerr
+		}
+		return SemaphoreRejected
 	})
 	if err != nil {
 		// Panic with error and handle it the same as panic.
@@ -181,6 +191,8 @@ func addEventForRequest(stats *executionStats, r interface{}) {
 			stats.addEvent(requestlog.Timeout)
 		} else if x == circuitbreaker.CircuitOpenError {
 			stats.addEvent(requestlog.ShortCircuited)
+		} else if x == SemaphoreRejected {
+			stats.addEvent(requestlog.SemaphoreRejected)
 		} else {
 			stats.addEvent(requestlog.Failure)
 		}

@@ -65,3 +65,9 @@ func TestStringEmptyRequestLog(t *testing.T) {
 	logger := newRequestLog()
 	assert.Equal(t, "", logger.String())
 }
+
+func TestStringEvents(t *testing.T) {
+	logger := newRequestLog()
+	logger.AddExecutionInfo(NewExecutionInfo("Foo", 0, []ExecutionEvent{SemaphoreRejected}))
+	assert.Equal(t, "Foo[SEMAPHORE_REJECTED][0ms]", logger.String())
+}

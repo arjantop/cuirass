@@ -8,18 +8,20 @@ import (
 )
 
 type CommandProperties struct {
-	ExecutionTimeout    vaquita.DurationProperty
-	FallbackEnabled     vaquita.BoolProperty
-	RequestCacheEnabled vaquita.BoolProperty
-	RequestLogEnabled   vaquita.BoolProperty
-	CircuitBreaker      *circuitbreaker.CircuitBreakerProperties
+	ExecutionTimeout               vaquita.DurationProperty
+	ExecutionMaxConcurrentRequests vaquita.IntProperty
+	FallbackEnabled                vaquita.BoolProperty
+	RequestCacheEnabled            vaquita.BoolProperty
+	RequestLogEnabled              vaquita.BoolProperty
+	CircuitBreaker                 *circuitbreaker.CircuitBreakerProperties
 }
 
 const (
-	ExecutionTimeoutDefault    = time.Second
-	FallbackEnabledDefault     = true
-	RequestCacheEnabledDefault = true
-	RequestLogEnabledDefault   = true
+	ExecutionTimeoutDefault               = time.Second
+	ExecutionMaxConcurrentRequestsDefault = 100
+	FallbackEnabledDefault                = true
+	RequestCacheEnabledDefault            = true
+	RequestLogEnabledDefault              = true
 
 	CircuitBreakerEnabledDefault                  = true
 	CircuitBreakerRequestVolumeThresholdDefault   = 20
@@ -29,14 +31,15 @@ const (
 	CircuitBreakerForceClosedDefault              = false
 )
 
-func newCommandProperties(cfg vaquita.DynamicConfig, commandName string) *CommandProperties {
+func newCommandProperties(cfg vaquita.DynamicConfig, commandName, commandGroup string) *CommandProperties {
 	pf := vaquita.NewPropertyFactory(cfg)
 	propertyPrefix := pf.GetStringProperty("cuirass.config.prefix", "cuirass").Get()
 	return &CommandProperties{
-		ExecutionTimeout:    newDurationProperty(pf, propertyPrefix+".command", commandName, "execution.isolation.thread.timeoutInMilliseconds", ExecutionTimeoutDefault),
-		FallbackEnabled:     newBoolProperty(pf, propertyPrefix+".command", commandName, "fallback.enabled", FallbackEnabledDefault),
-		RequestCacheEnabled: newBoolProperty(pf, propertyPrefix+".command", commandName, "requestCache.enabled", RequestCacheEnabledDefault),
-		RequestLogEnabled:   newBoolProperty(pf, propertyPrefix+".command", commandName, "requestLog.enabled", RequestLogEnabledDefault),
+		ExecutionTimeout:               newDurationProperty(pf, propertyPrefix+".command", commandName, "execution.isolation.thread.timeoutInMilliseconds", ExecutionTimeoutDefault),
+		ExecutionMaxConcurrentRequests: newIntProperty(pf, propertyPrefix+".command", commandGroup, "execution.isolation.semaphore.maxConcurrentRequests", ExecutionMaxConcurrentRequestsDefault),
+		FallbackEnabled:                newBoolProperty(pf, propertyPrefix+".command", commandName, "fallback.enabled", FallbackEnabledDefault),
+		RequestCacheEnabled:            newBoolProperty(pf, propertyPrefix+".command", commandName, "requestCache.enabled", RequestCacheEnabledDefault),
+		RequestLogEnabled:              newBoolProperty(pf, propertyPrefix+".command", commandName, "requestLog.enabled", RequestLogEnabledDefault),
 		CircuitBreaker: &circuitbreaker.CircuitBreakerProperties{
 			Enabled:                  newBoolProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.enabled", CircuitBreakerEnabledDefault),
 			RequestVolumeThreshold:   newIntProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.requestVolumeThreshold", CircuitBreakerRequestVolumeThresholdDefault),

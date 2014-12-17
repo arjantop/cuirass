@@ -19,7 +19,7 @@ type CommandFunc func(ctx context.Context) (interface{}, error)
 // Command is a wrapper for a code that requires latency and fault tolerance
 // (typically service call over the network).
 type Command struct {
-	name          string
+	name, group   string
 	run, fallback CommandFunc
 	cacheKey      string
 }
@@ -27,6 +27,11 @@ type Command struct {
 // Name returns the name of the command.
 func (c *Command) Name() string {
 	return c.name
+}
+
+// Group returns the name of the group the command belongs to.
+func (c *Command) Group() string {
+	return c.group
 }
 
 // Run executes a primary function to fetch a result.
@@ -50,12 +55,12 @@ func (c *Command) CacheKey() string {
 }
 
 func (c *Command) Properties(cfg vaquita.DynamicConfig) *CommandProperties {
-	return newCommandProperties(cfg, c.Name())
+	return newCommandProperties(cfg, c.Name(), c.Group())
 }
 
 // CommandBuilder is a helper used for constructing new Commands.
 type CommandBuilder struct {
-	name          string
+	name, group   string
 	run, fallback CommandFunc
 	cacheKey      string
 }
@@ -64,9 +69,18 @@ type CommandBuilder struct {
 // implementation (name and primary function).
 func NewCommand(name string, run CommandFunc) *CommandBuilder {
 	return &CommandBuilder{
-		name: name,
-		run:  run,
+		name:  name,
+		group: name,
+		run:   run,
 	}
+}
+
+// Group sets a group name for a command. The default group name is the name
+// of the command. Group name is used for limiting the concurrent execution
+// of the command for the entire group.
+func (b *CommandBuilder) Group(name string) *CommandBuilder {
+	b.group = name
+	return b
 }
 
 // Fallback adds a fallback function to the command being built.
@@ -87,6 +101,7 @@ func (b *CommandBuilder) CacheKey(cacheKey string) *CommandBuilder {
 func (b *CommandBuilder) Build() *Command {
 	cmd := &Command{
 		name:     b.name,
+		group:    b.group,
 		run:      b.run,
 		cacheKey: b.cacheKey,
 		fallback: b.fallback,

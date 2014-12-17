@@ -99,15 +99,6 @@ func TestExecutionMetricsMultipleEvents(t *testing.T) {
 	assert.Equal(t, 1, m.RollingSum(requestlog.FallbackSuccess))
 }
 
-func TestExecutionMetricsResponseFromCache(t *testing.T) {
-	em := newTestingExecutionMetrics()
-	em.Update("command", 0, requestlog.Failure, requestlog.FallbackSuccess, requestlog.ResponseFromCache)
-	m := em.ForCommand("command")
-	assert.Equal(t, 0, m.RollingSum(requestlog.Failure))
-	assert.Equal(t, 0, m.RollingSum(requestlog.FallbackSuccess))
-	assert.Equal(t, 1, m.RollingSum(requestlog.ResponseFromCache))
-}
-
 func TestExecutionMetricsExecutionTimePercentile(t *testing.T) {
 	em := newTestingExecutionMetrics()
 	m := em.ForCommand("command")
@@ -125,6 +116,8 @@ func TestExecutionMetricsIgoreExecutionTimeOfEvents(t *testing.T) {
 	em.Update("command", 10, requestlog.ResponseFromCache)
 	assert.Equal(t, 0, m.ExecutionTimePercentile(100))
 	em.Update("command", 20, requestlog.ShortCircuited)
+	assert.Equal(t, 0, m.ExecutionTimePercentile(100))
+	em.Update("command", 20, requestlog.SemaphoreRejected)
 	assert.Equal(t, 0, m.ExecutionTimePercentile(100))
 }
 
