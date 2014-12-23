@@ -55,7 +55,7 @@ func (c *Command) CacheKey() string {
 }
 
 func (c *Command) Properties(cfg vaquita.DynamicConfig) *CommandProperties {
-	return newCommandProperties(cfg, c.Name(), c.Group())
+	return GetProperties(cfg, c.Name(), c.Group())
 }
 
 // CommandBuilder is a helper used for constructing new Commands.
