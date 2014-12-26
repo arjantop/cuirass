@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"code.google.com/p/go.net/context"
 	"github.com/arjantop/cuirass"
+	"golang.org/x/net/context"
 )
 
 func NewGetUserAccountCommand(cookie *http.Cookie) *cuirass.Command {

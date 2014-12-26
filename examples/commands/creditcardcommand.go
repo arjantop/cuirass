@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"code.google.com/p/go.net/context"
 	"github.com/arjantop/cuirass"
+	"golang.org/x/net/context"
 )
 
 func NewCreditCardCommand(

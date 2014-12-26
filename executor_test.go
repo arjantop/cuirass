@@ -5,14 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"code.google.com/p/go.net/context"
-
 	"github.com/arjantop/cuirass"
 	"github.com/arjantop/cuirass/circuitbreaker"
 	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
 	"github.com/arjantop/vaquita"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/net/context"
 )
 
 func NewFooCommand(s, f string) *cuirass.Command {

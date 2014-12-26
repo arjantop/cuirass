@@ -4,8 +4,7 @@ import (
 	"errors"
 
 	"github.com/arjantop/vaquita"
-
-	"code.google.com/p/go.net/context"
+	"golang.org/x/net/context"
 )
 
 // FallbackNotImplemented is the error returned by Cimmand.Fallback when no fallback

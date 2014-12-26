@@ -3,10 +3,10 @@ package requestcache_test
 import (
 	"testing"
 
-	"code.google.com/p/go.net/context"
 	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/net/context"
 )
 
 func TestFromContext(t *testing.T) {

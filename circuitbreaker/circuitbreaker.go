@@ -97,7 +97,7 @@ func (cb *CircuitBreaker) Do(f func() error) error {
 
 // updateState trips the breaker if the request error rate is larger than the threshold.
 func (cb *CircuitBreaker) updateState() {
-	if cb.IsOpen() || cb.requestCounter.Sum() < uint64(cb.props.RequestVolumeThreshold.Get()) {
+	if cb.IsOpen() || cb.requestCounter.Sum() < int64(cb.props.RequestVolumeThreshold.Get()) {
 		// If the circuit is open pr there were not enough requests made in the
 		// configured statistical window there is nothing to do.
 		return

@@ -1,6 +1,6 @@
 package contextutil
 
-import "code.google.com/p/go.net/context"
+import "golang.org/x/net/context"
 
 func Do(ctx context.Context, f func() error) error {
 	return DoWithCancel(ctx, func() {}, f)

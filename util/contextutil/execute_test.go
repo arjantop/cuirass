@@ -7,8 +7,7 @@ import (
 
 	"github.com/arjantop/cuirass/util/contextutil"
 	"github.com/stretchr/testify/assert"
-
-	"code.google.com/p/go.net/context"
+	"golang.org/x/net/context"
 )
 
 func TestDoErrorReturned(t *testing.T) {

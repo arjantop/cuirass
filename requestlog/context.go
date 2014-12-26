@@ -1,6 +1,6 @@
 package requestlog
 
-import "code.google.com/p/go.net/context"
+import "golang.org/x/net/context"
 
 type key int
 

@@ -5,8 +5,8 @@ import (
 	"math/rand"
 	"time"
 
-	"code.google.com/p/go.net/context"
 	"github.com/arjantop/cuirass"
+	"golang.org/x/net/context"
 )
 
 func NewGetPaymentInformationCommand(user *UserAccount) *cuirass.Command {

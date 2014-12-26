@@ -5,14 +5,13 @@ import (
 	"sync"
 	"time"
 
-	"code.google.com/p/go.net/context"
-
 	"github.com/arjantop/cuirass/circuitbreaker"
 	"github.com/arjantop/cuirass/metrics"
 	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
 	"github.com/arjantop/cuirass/util"
 	"github.com/arjantop/vaquita"
+	"golang.org/x/net/context"
 )
 
 var (

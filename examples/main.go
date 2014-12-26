@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	"code.google.com/p/go.net/context"
 	"github.com/arjantop/cuirass"
 	"github.com/arjantop/cuirass/examples/commands"
 	"github.com/arjantop/cuirass/metrics"
@@ -19,6 +18,7 @@ import (
 	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
 	"github.com/arjantop/vaquita"
+	"golang.org/x/net/context"
 )
 
 func main() {

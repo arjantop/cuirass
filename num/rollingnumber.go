@@ -21,7 +21,7 @@ type RollingNumber struct {
 	bucketSize        time.Duration
 	currentBucket     uint
 	currentBucketTime time.Time
-	buckets           []uint64
+	buckets           []int64
 	clock             util.Clock
 	lock              *sync.RWMutex
 }
@@ -32,7 +32,7 @@ func NewRollingNumber(windowSize time.Duration, windowBuckets uint, clock util.C
 		bucketSize:        calculateBucketSize(windowSize, windowBuckets),
 		currentBucket:     0,
 		currentBucketTime: clock.Now(),
-		buckets:           make([]uint64, windowBuckets),
+		buckets:           make([]int64, windowBuckets),
 		clock:             clock,
 		lock:              new(sync.RWMutex),
 	}
@@ -67,13 +67,13 @@ func (n *RollingNumber) Increment() {
 }
 
 // Sum sums all the bucket values of the sliding window and returns the result.
-func (n *RollingNumber) Sum() uint64 {
+func (n *RollingNumber) Sum() int64 {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 	// We don't need the current bucket but we must still recalculate which bucket is current
 	// and reset values that are no longer valid.
 	n.findCurrentBucket()
-	sum := uint64(0)
+	sum := int64(0)
 	for _, v := range n.buckets {
 		sum += v
 	}
