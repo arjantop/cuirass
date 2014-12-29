@@ -53,6 +53,16 @@ func TestRollingPercentileAll(t *testing.T) {
 	assert.Equal(t, 10, rp.Get(100))
 }
 
+func TestRollingPercentileInterpolation(t *testing.T) {
+	rp := newTestingRollingPercentile(nil)
+	addAll(rp, 1, 20, 50)
+
+	assert.Equal(t, 33, rp.Get(48))
+	assert.Equal(t, 34, rp.Get(49))
+	assert.Equal(t, 35, rp.Get(50))
+	assert.Equal(t, 36, rp.Get(52))
+}
+
 func TestRollingPercentile99(t *testing.T) {
 	rp := newTestingRollingPercentile(nil)
 	addAll(rp, 1, 2, 3, 4, 5)

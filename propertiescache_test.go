@@ -13,7 +13,7 @@ func TestGetPropertiesCached(t *testing.T) {
 	p1 := cuirass.GetProperties(cfg, "n", "g")
 	p2 := cuirass.GetProperties(cfg, "n", "g")
 
-	assert.Equal(t, p1, p2)
+	assert.True(t, p1 == p2)
 }
 
 func TestGetPropertiesName(t *testing.T) {
@@ -21,7 +21,7 @@ func TestGetPropertiesName(t *testing.T) {
 	p1 := cuirass.GetProperties(cfg, "n", "g")
 	p2 := cuirass.GetProperties(cfg, "n2", "g")
 
-	assert.NotEqual(t, p1, p2)
+	assert.True(t, p1 != p2)
 }
 
 func TestGetPropertiesGroup(t *testing.T) {
@@ -29,7 +29,7 @@ func TestGetPropertiesGroup(t *testing.T) {
 	p1 := cuirass.GetProperties(cfg, "n", "g")
 	p2 := cuirass.GetProperties(cfg, "n", "g2")
 
-	assert.NotEqual(t, p1, p2)
+	assert.True(t, p1 != p2)
 }
 
 func TestGetPropertiesConfig(t *testing.T) {
@@ -38,5 +38,5 @@ func TestGetPropertiesConfig(t *testing.T) {
 	cfg2 := vaquita.NewEmptyMapConfig()
 	p2 := cuirass.GetProperties(cfg2, "n", "g")
 
-	assert.NotEqual(t, p1, p2)
+	assert.True(t, p1 != p2)
 }

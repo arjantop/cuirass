@@ -1,6 +1,7 @@
 package num
 
 import (
+	"math"
 	"sort"
 	"sync"
 	"time"
@@ -103,12 +104,16 @@ func calculatePercentile(p float64, values []int) int {
 	} else if p >= 100 {
 		return values[len(values)-1]
 	}
-	percentileIndex := p / 100.0 * float64(len(values))
-	index := round(percentileIndex)
-	if index > len(values)-1 {
-		index = len(values) - 1
+	rank := p / 100.0 * float64(len(values))
+	lowIndex := int(math.Floor(rank))
+	highIndex := int(math.Ceil(rank))
+	if highIndex >= len(values) {
+		return values[len(values)-1]
+	} else if lowIndex == highIndex {
+		return values[lowIndex]
+	} else {
+		return values[lowIndex] + int((rank-float64(lowIndex))*float64(values[highIndex]-values[lowIndex]))
 	}
-	return values[index]
 }
 
 func round(v float64) int {
