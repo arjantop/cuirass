@@ -25,10 +25,11 @@ const (
 
 	CircuitBreakerEnabledDefault                  = true
 	CircuitBreakerRequestVolumeThresholdDefault   = 20
-	CircuitBreakerSleepWindowDefault              = 5000
+	CircuitBreakerSleepWindowDefault              = 5000 * time.Millisecond
 	CircuitBreakerErrorThresholdPercentageDefault = 50
 	CircuitBreakerForceOpenDefault                = false
 	CircuitBreakerForceClosedDefault              = false
+	CircuitBreakerHealthSnapshotIntervalDefault   = 500 * time.Millisecond
 )
 
 func newCommandProperties(cfg vaquita.DynamicConfig, commandName, commandGroup string) *CommandProperties {
@@ -43,10 +44,11 @@ func newCommandProperties(cfg vaquita.DynamicConfig, commandName, commandGroup s
 		CircuitBreaker: &circuitbreaker.CircuitBreakerProperties{
 			Enabled:                  newBoolProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.enabled", CircuitBreakerEnabledDefault),
 			RequestVolumeThreshold:   newIntProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.requestVolumeThreshold", CircuitBreakerRequestVolumeThresholdDefault),
-			SleepWindow:              newIntProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.sleepWindowInMilliseconds", CircuitBreakerSleepWindowDefault),
+			SleepWindow:              newDurationProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.sleepWindowInMilliseconds", CircuitBreakerSleepWindowDefault),
 			ErrorThresholdPercentage: newIntProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.errorThresholdPercentage", CircuitBreakerErrorThresholdPercentageDefault),
 			ForceOpen:                newBoolProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.forceOpen", CircuitBreakerForceOpenDefault),
 			ForceClosed:              newBoolProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.forceClosed", CircuitBreakerForceClosedDefault),
+			HealthSnapshotInterval:   newDurationProperty(pf, propertyPrefix+".command", commandName, "metrics.healthSnapshot.intervalInMilliseconds", CircuitBreakerHealthSnapshotIntervalDefault),
 		},
 	}
 }

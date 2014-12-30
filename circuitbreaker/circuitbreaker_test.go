@@ -24,10 +24,11 @@ func newTestingCircuitBreaker(cfg vaquita.DynamicConfig, clock util.Clock) *circ
 	return circuitbreaker.New(&circuitbreaker.CircuitBreakerProperties{
 		f.GetBoolProperty("enabled", true),
 		f.GetIntProperty("requestThreshold", 3),
-		f.GetIntProperty("sleepWindow", 500),
+		f.GetDurationProperty("sleepWindow", 500*time.Millisecond, time.Millisecond),
 		f.GetIntProperty("errorThreshold", 50),
 		f.GetBoolProperty("forceOpen", false),
 		f.GetBoolProperty("forceClosed", false),
+		f.GetDurationProperty("healthSnapshot", 0, time.Millisecond),
 	}, clock)
 }
 
@@ -46,10 +47,8 @@ func TestCircuitBreakerOpenRequestVolume(t *testing.T) {
 	cb := newTestingCircuitBreaker(nil, nil)
 	assert.False(t, cb.IsOpen())
 	cb.Do(func() error { return testErr })
-	cb.Do(func() error { return testErr })
 	assert.False(t, cb.IsOpen())
 	assert.Equal(t, testErr, cb.Do(func() error { return testErr }))
-	assert.True(t, cb.IsOpen())
 }
 
 func TestCircuitBreakerOpenAfterErrorThreshold(t *testing.T) {
@@ -66,12 +65,34 @@ func TestCircuitBreakerOpenAfterErrorThreshold(t *testing.T) {
 	assert.Equal(t, circuitbreaker.CircuitOpenError, cb.Do(func() error { return testErr }))
 }
 
-func TestCircuitBreakerClosesOnTrialSuccess(t *testing.T) {
+func TestCircuitbreakerHealthNotRecalculatedForSetInterval(t *testing.T) {
 	cfg := vaquita.NewEmptyMapConfig()
 	cfg.SetProperty("requestThreshold", "1")
+	cfg.SetProperty("healthSnapshot", "100")
 	clock := util.NewTestableClock(time.Now())
 	cb := newTestingCircuitBreaker(cfg, clock)
 
+	// Initial health calculation.
+	cb.Do(func() error { return nil })
+	cb.Do(func() error { return testErr })
+	// This should trip the breaker but won't until the health is recauculated.
+	cb.Do(func() error { return testErr })
+	assert.False(t, cb.IsOpen())
+	clock.Add(100 * time.Millisecond) // Sleep for the health recalculation interval.
+	assert.False(t, cb.IsOpen())
+	clock.Add(time.Millisecond)
+	assert.True(t, cb.IsOpen())
+}
+
+func TestCircuitBreakerClosesOnTrialSuccess(t *testing.T) {
+	cfg := vaquita.NewEmptyMapConfig()
+	cfg.SetProperty("requestThreshold", "0")
+	clock := util.NewTestableClock(time.Now())
+	cb := newTestingCircuitBreaker(cfg, clock)
+
+	cb.Do(func() error { return testErr })
+	cb.Do(func() error { return testErr })
+	clock.Add(time.Microsecond)
 	// Trip the breaker.
 	cb.Do(func() error { return testErr })
 	assert.True(t, cb.IsOpen())
@@ -101,6 +122,9 @@ func TestCircuitBreakerStaysOpenOnTrialFailure(t *testing.T) {
 	clock := util.NewTestableClock(time.Now())
 	cb := newTestingCircuitBreaker(cfg, clock)
 
+	cb.Do(func() error { return testErr })
+	cb.Do(func() error { return testErr })
+	clock.Add(time.Microsecond)
 	// Trip the breaker.
 	cb.Do(func() error { return testErr })
 	assert.True(t, cb.IsOpen())

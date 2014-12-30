@@ -149,7 +149,8 @@ func (l *RequestLog) String() string {
 	commandOrder := make([]string, 0)
 	aggregatedCommands := make(map[string]*aggregatedCommand)
 
-	// Because range iterates over a copy of the slice we need no locks here.
+	l.executedRequestsLock.RLock()
+	defer l.executedRequestsLock.RUnlock()
 	for _, info := range l.executedRequests {
 		b.Truncate(0)
 		writeCommand(&b, info)

@@ -55,21 +55,21 @@ func calculateBucketSize(windowSize time.Duration, windowBuckets uint) time.Dura
 // BucketSize returns the calculated bucket size based on requested sliding window parameters.
 func (n *RollingNumber) BucketSize() time.Duration {
 	n.lock.RLock()
-	defer n.lock.RUnlock()
-	return n.bucketSize
+	size := n.bucketSize
+	n.lock.RUnlock()
+	return size
 }
 
 // Increment increments the number by one.
 func (n *RollingNumber) Increment() {
 	n.lock.Lock()
-	defer n.lock.Unlock()
 	n.buckets[n.findCurrentBucket()] += 1
+	n.lock.Unlock()
 }
 
 // Sum sums all the bucket values of the sliding window and returns the result.
 func (n *RollingNumber) Sum() int64 {
 	n.lock.Lock()
-	defer n.lock.Unlock()
 	// We don't need the current bucket but we must still recalculate which bucket is current
 	// and reset values that are no longer valid.
 	n.findCurrentBucket()
@@ -77,6 +77,7 @@ func (n *RollingNumber) Sum() int64 {
 	for _, v := range n.buckets {
 		sum += v
 	}
+	n.lock.Unlock()
 	return sum
 }
 

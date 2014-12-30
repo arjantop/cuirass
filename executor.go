@@ -32,7 +32,10 @@ type Executor struct {
 
 // NewExecutor constructs a new empty executor.
 func NewExecutor(cfg vaquita.DynamicConfig) *Executor {
-	clock := util.NewClock()
+	return NewExecutorWithClock(cfg, util.NewClock())
+}
+
+func NewExecutorWithClock(cfg vaquita.DynamicConfig, clock util.Clock) *Executor {
 	return &Executor{
 		clock:           clock,
 		cfg:             cfg,

@@ -31,18 +31,17 @@ func NewRollingPercentile(windowSize time.Duration, windowBuckets uint, clock ut
 
 func (p *RollingPercentile) BucketSize() time.Duration {
 	p.lock.RLock()
-	defer p.lock.RUnlock()
-	return p.bucketSize
+	size := p.bucketSize
+	p.lock.RUnlock()
+	return size
 }
 
 func (p *RollingPercentile) Add(v int) {
 	p.findCurrentBucket().add(v)
 }
 
-// TODO: try to extract common functionality with RollingNumber.
 func (p *RollingPercentile) findCurrentBucket() *percentileBucket {
 	p.lock.Lock()
-	defer p.lock.Unlock()
 
 	now := p.clock.Now()
 	timeDiffFromFirstBucket := now.Sub(p.currentBucketTime)
@@ -55,14 +54,15 @@ func (p *RollingPercentile) findCurrentBucket() *percentileBucket {
 		p.currentBucket = (p.currentBucket + bucketsBehind) % numBuckets
 		p.currentBucketTime = now
 	}
-	return &p.buckets[p.currentBucket]
+	bucket := &p.buckets[p.currentBucket]
+	p.lock.Unlock()
+	return bucket
 }
 
 func (p *RollingPercentile) Get(percentile float64) int {
 	// Update the current bucket.
 	p.findCurrentBucket()
 	p.lock.Lock()
-	defer p.lock.Unlock()
 	values := make([]int, 0)
 	for _, b := range p.buckets {
 		// TODO: use copy
@@ -71,6 +71,7 @@ func (p *RollingPercentile) Get(percentile float64) int {
 		}
 	}
 	sort.Sort(sort.IntSlice(values))
+	p.lock.Unlock()
 	return calculatePercentile(percentile, values)
 }
 
@@ -79,7 +80,6 @@ func (p *RollingPercentile) Mean() int {
 	// Update the current bucket.
 	p.findCurrentBucket()
 	p.lock.Lock()
-	defer p.lock.Unlock()
 	count := int64(0)
 	sum := int64(0)
 	for _, b := range p.buckets {
@@ -88,6 +88,7 @@ func (p *RollingPercentile) Mean() int {
 			sum += int64(v)
 		}
 	}
+	p.lock.Unlock()
 	if count == 0 {
 		return 0
 	}

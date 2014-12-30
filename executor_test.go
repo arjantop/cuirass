@@ -9,6 +9,7 @@ import (
 	"github.com/arjantop/cuirass/circuitbreaker"
 	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
+	"github.com/arjantop/cuirass/util"
 	"github.com/arjantop/vaquita"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/context"
@@ -187,12 +188,15 @@ func TestExecIntPanicWithoutFallback(t *testing.T) {
 func TestExecFailuresTripCircuitBreaker(t *testing.T) {
 	ctx := requestlog.WithRequestLog(context.Background())
 	cmd := NewFooCommand("error", "none")
-	ex := newTestingExecutor(nil)
+	cfg := vaquita.NewEmptyMapConfig()
+	clock := util.NewTestableClock(time.Now())
+	ex := cuirass.NewExecutorWithClock(cfg, clock)
 	assert.False(t, ex.IsCircuitBreakerOpen("FooCommand"))
 	for i := 0; i < 20; i++ {
 		_, err := ex.Exec(ctx, cmd)
 		assert.Equal(t, errors.New("foo"), err)
 	}
+	clock.Add(cuirass.CircuitBreakerHealthSnapshotIntervalDefault + 1)
 	_, err := ex.Exec(ctx, cmd)
 	assert.Equal(t, circuitbreaker.CircuitOpenError, err)
 	assert.True(t, ex.IsCircuitBreakerOpen("FooCommand"))

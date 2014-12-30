@@ -3,6 +3,7 @@ package circuitbreaker
 import (
 	"errors"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/arjantop/cuirass/num"
 	"github.com/arjantop/cuirass/util"
@@ -24,10 +25,11 @@ const (
 type CircuitBreakerProperties struct {
 	Enabled                  vaquita.BoolProperty
 	RequestVolumeThreshold   vaquita.IntProperty
-	SleepWindow              vaquita.IntProperty
+	SleepWindow              vaquita.DurationProperty
 	ErrorThresholdPercentage vaquita.IntProperty
 	ForceOpen                vaquita.BoolProperty
 	ForceClosed              vaquita.BoolProperty
+	HealthSnapshotInterval   vaquita.DurationProperty
 }
 
 // CircuitBreaker is an implementation of circuit breaker pattern.
@@ -39,22 +41,70 @@ type CircuitBreaker struct {
 	circuitOpen   uint32
 	lastTrialTime int64
 
-	errorCounter   *num.RollingNumber
-	requestCounter *num.RollingNumber
+	health breakerHealth
 
 	clock util.Clock
+}
+
+type breakerHealth struct {
+	healthSnapshotInterval vaquita.DurationProperty
+	clock                  util.Clock
+	errorCounter           *num.RollingNumber
+	requestCounter         *num.RollingNumber
+	healthSnapshot         *health
+	snapshotTime           int64
+}
+
+func (h *breakerHealth) IncRequest() {
+	h.requestCounter.Increment()
+}
+
+func (h *breakerHealth) IncError() {
+	h.errorCounter.Increment()
+}
+
+func (h *breakerHealth) Reset() {
+	h.errorCounter.Reset()
+	h.requestCounter.Reset()
+}
+
+func (h *breakerHealth) Health() *health {
+	lastSnapshotTime := atomic.LoadInt64(&h.snapshotTime)
+	timestamp := h.clock.Now().UnixNano()
+	dest := unsafe.Pointer(h.healthSnapshot)
+	if timestamp > lastSnapshotTime+int64(h.healthSnapshotInterval.Get()) {
+		if atomic.CompareAndSwapInt64(&h.snapshotTime, lastSnapshotTime, timestamp) {
+			reqCount := h.requestCounter.Sum()
+			newSnapshot := &health{
+				NumRequests:     reqCount,
+				ErrorPercentage: float64(h.errorCounter.Sum()) * 100.0 / float64(reqCount),
+			}
+			atomic.StorePointer(&dest, unsafe.Pointer(newSnapshot))
+		}
+	}
+	return (*health)(atomic.LoadPointer(&dest))
+}
+
+type health struct {
+	NumRequests     int64
+	ErrorPercentage float64
 }
 
 // Constructs a new circuit breaker. The circuit is closed by default and allowed
 // the initial statistical values are zero ().
 func New(props *CircuitBreakerProperties, clock util.Clock) *CircuitBreaker {
 	return &CircuitBreaker{
-		props:          props,
-		circuitOpen:    intFalse,
-		lastTrialTime:  0,
-		errorCounter:   num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets, clock),
-		requestCounter: num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets, clock),
-		clock:          clock,
+		props:         props,
+		circuitOpen:   intFalse,
+		lastTrialTime: 0,
+		health: breakerHealth{
+			healthSnapshotInterval: props.HealthSnapshotInterval,
+			clock:          clock,
+			errorCounter:   num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets, clock),
+			requestCounter: num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets, clock),
+			healthSnapshot: new(health),
+		},
+		clock: clock,
 	}
 }
 
@@ -67,9 +117,7 @@ func (cb *CircuitBreaker) Do(f func() error) error {
 	} else if cb.props.ForceOpen.Get() {
 		return CircuitOpenError
 	}
-	// Update the circuit state after every request.
-	defer cb.updateState()
-	cb.requestCounter.Increment()
+	cb.health.IncRequest()
 	if allowed, trial := cb.isRequestAllowed(); allowed {
 		err := f()
 		if err != nil {
@@ -79,37 +127,18 @@ func (cb *CircuitBreaker) Do(f func() error) error {
 				err = CircuitOpenError
 			}
 			// If error occurs we increment the request error counter.
-			cb.errorCounter.Increment()
+			cb.health.IncError()
 		} else if trial {
 			// If the request was a trial and it succeeded reset all the counters
 			// and reset the breaker state to closed.
-			cb.errorCounter.Reset()
-			cb.requestCounter.Reset()
+			cb.health.Reset()
 			atomic.StoreUint32(&cb.circuitOpen, intFalse)
 		}
 		return err
 	} else {
 		// Circuit is open so we fail fast and return the error.
-		cb.errorCounter.Increment()
+		cb.health.IncError()
 		return CircuitOpenError
-	}
-}
-
-// updateState trips the breaker if the request error rate is larger than the threshold.
-func (cb *CircuitBreaker) updateState() {
-	if cb.IsOpen() || cb.requestCounter.Sum() < int64(cb.props.RequestVolumeThreshold.Get()) {
-		// If the circuit is open pr there were not enough requests made in the
-		// configured statistical window there is nothing to do.
-		return
-	}
-	if float64(cb.errorCounter.Sum())*100.0/float64(cb.requestCounter.Sum()) > float64(cb.props.ErrorThresholdPercentage.Get()) {
-		// If the error request rate is greater that configured threshold attempt
-		// to change circuit to Open.
-		if atomic.CompareAndSwapUint32(&cb.circuitOpen, intFalse, intTrue) {
-			// If we set the circuit state successfully update the request
-			// trial time to a current time.
-			atomic.StoreInt64(&cb.lastTrialTime, cb.clock.Now().UnixNano())
-		}
 	}
 }
 
@@ -119,6 +148,8 @@ func (cb *CircuitBreaker) updateState() {
 func (cb *CircuitBreaker) isRequestAllowed() (bool, bool) {
 	trialCall := cb.isTrialCallAllowed()
 	if cb.props.ForceClosed.Get() {
+		// Call IsOpen just to update the state.
+		cb.IsOpen()
 		return true, trialCall
 	}
 	return !cb.IsOpen() || trialCall, trialCall
@@ -129,7 +160,7 @@ func (cb *CircuitBreaker) isRequestAllowed() (bool, bool) {
 func (cb *CircuitBreaker) isTrialCallAllowed() bool {
 	lastTrialTime := atomic.LoadInt64(&cb.lastTrialTime)
 	timestamp := cb.clock.Now().UnixNano()
-	if cb.IsOpen() && timestamp > lastTrialTime+int64(cb.props.SleepWindow.Get()*1000000) {
+	if cb.IsOpen() && timestamp > lastTrialTime+int64(cb.props.SleepWindow.Get()) {
 		if atomic.CompareAndSwapInt64(&cb.lastTrialTime, lastTrialTime, timestamp) {
 			return true
 		}
@@ -141,6 +172,29 @@ func (cb *CircuitBreaker) isTrialCallAllowed() bool {
 func (cb *CircuitBreaker) IsOpen() bool {
 	if cb.props.ForceClosed.Get() {
 		return false
+	} else if cb.props.ForceOpen.Get() {
+		return true
 	}
-	return cb.props.ForceOpen.Get() || atomic.LoadUint32(&cb.circuitOpen) == intTrue
+
+	if atomic.LoadUint32(&cb.circuitOpen) == intTrue {
+		return true
+	}
+
+	health := cb.health.Health()
+	if health.NumRequests < int64(cb.props.RequestVolumeThreshold.Get()) {
+		// If there were not enough requests made in the
+		// configured statistical window there is nothing to do.
+		return false
+	}
+	if health.ErrorPercentage > float64(cb.props.ErrorThresholdPercentage.Get()) {
+		// If the error request rate is greater that configured threshold attempt
+		// to change circuit to Open.
+		if atomic.CompareAndSwapUint32(&cb.circuitOpen, intFalse, intTrue) {
+			// If we set the circuit state successfully update the request
+			// trial time to a current time.
+			atomic.StoreInt64(&cb.lastTrialTime, cb.clock.Now().UnixNano())
+		}
+		return true
+	}
+	return false
 }
