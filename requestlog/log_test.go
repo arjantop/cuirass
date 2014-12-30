@@ -50,10 +50,10 @@ func TestLastRequest(t *testing.T) {
 	logger := newRequestLog()
 	info1 := NewExecutionInfo("Foo", 1, []ExecutionEvent{Success})
 	logger.AddExecutionInfo(info1)
-	assert.Equal(t, info1, logger.LastRequest())
+	assert.Equal(t, info1, *logger.LastRequest())
 	info2 := NewExecutionInfo("Bar", 2, []ExecutionEvent{Success})
 	logger.AddExecutionInfo(info2)
-	assert.Equal(t, info2, logger.LastRequest())
+	assert.Equal(t, info2, *logger.LastRequest())
 }
 
 func TestExecutionInfoExecutionTimeNegative(t *testing.T) {

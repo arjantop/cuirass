@@ -473,3 +473,12 @@ func TestExecutorMetricsAreUpdated(t *testing.T) {
 	assert.True(t, m2.ExecutionTimePercentile(50) > 0)
 	assert.True(t, m2.ExecutionTimePercentile(0) > 0)
 }
+
+func BenchmarkExecutorCommandExecution(b *testing.B) {
+	ctx := context.Background()
+	cmd := NewFooCommand("foo", "")
+	ex := newTestingExecutor(nil)
+	for i := 0; i < b.N; i++ {
+		ex.Exec(ctx, cmd)
+	}
+}

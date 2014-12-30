@@ -72,9 +72,9 @@ type ExecutionInfo struct {
 func NewExecutionInfo(
 	commandName string,
 	executionTime time.Duration,
-	events []ExecutionEvent) *ExecutionInfo {
+	events []ExecutionEvent) ExecutionInfo {
 
-	return &ExecutionInfo{
+	return ExecutionInfo{
 		commandName:   commandName,
 		executionTime: executionTime,
 		events:        events,
@@ -109,20 +109,20 @@ func (e *ExecutionInfo) Events() []ExecutionEvent {
 // occurred.
 // It is safe to access RequestLog from multiple threads simultaneously.
 type RequestLog struct {
-	executedRequests     []*ExecutionInfo
+	executedRequests     []ExecutionInfo
 	executedRequestsLock *sync.RWMutex
 }
 
 // newRequestLog constructs a new empty request log.
 func newRequestLog() *RequestLog {
 	return &RequestLog{
-		executedRequests:     make([]*ExecutionInfo, 0),
+		executedRequests:     make([]ExecutionInfo, 0),
 		executedRequestsLock: new(sync.RWMutex),
 	}
 }
 
 // AddExecutionInfo add the execution of executed command to the request log.
-func (l *RequestLog) AddExecutionInfo(info *ExecutionInfo) {
+func (l *RequestLog) AddExecutionInfo(info ExecutionInfo) {
 	l.executedRequestsLock.Lock()
 	defer l.executedRequestsLock.Unlock()
 	l.executedRequests = append(l.executedRequests, info)
@@ -139,7 +139,7 @@ func (l *RequestLog) Size() int {
 func (l *RequestLog) LastRequest() *ExecutionInfo {
 	l.executedRequestsLock.RLock()
 	defer l.executedRequestsLock.RUnlock()
-	return l.executedRequests[len(l.executedRequests)-1]
+	return &l.executedRequests[len(l.executedRequests)-1]
 }
 
 // String returns a nice string representation of the commands in the log.
@@ -187,7 +187,7 @@ func newAggregatedCommand(executionTime time.Duration) *aggregatedCommand {
 }
 
 // writeCommand writes a command execution info to the string buffer.
-func writeCommand(b *bytes.Buffer, info *ExecutionInfo) {
+func writeCommand(b *bytes.Buffer, info ExecutionInfo) {
 	b.WriteString(info.CommandName())
 	b.WriteString("[")
 	for i, event := range info.Events() {

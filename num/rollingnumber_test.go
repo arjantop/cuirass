@@ -42,6 +42,14 @@ func TestRollingNumberIncrement(t *testing.T) {
 	assert.Equal(t, 6, n.Sum())
 }
 
+func TestRollingNumberSleepBiggerThanWindow(t *testing.T) {
+	clock := util.NewTestableClock(time.Now())
+	n := newTestingRollingNumber(clock)
+	n.Increment()
+	clock.Add(time.Second)
+	assert.Equal(t, 0, n.Sum())
+}
+
 func TestRollingNumberSumInWindow(t *testing.T) {
 	clock := util.NewTestableClock(time.Now())
 	n := newTestingRollingNumber(clock)

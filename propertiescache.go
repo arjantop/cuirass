@@ -19,11 +19,12 @@ var (
 
 func GetProperties(cfg vaquita.DynamicConfig, commandName, commandGroup string) *CommandProperties {
 	lock.Lock()
-	defer lock.Unlock()
 	if p, ok := cache[key{commandName, commandGroup, cfg}]; ok {
+		lock.Unlock()
 		return p
 	}
 	p := newCommandProperties(cfg, commandName, commandGroup)
 	cache[key{commandName, commandGroup, cfg}] = p
+	lock.Unlock()
 	return p
 }

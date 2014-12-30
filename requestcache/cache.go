@@ -23,7 +23,7 @@ func newCacheKey(name, key string) cacheKey {
 type ExecutedCommand struct {
 	response interface{}
 	err      error
-	info     *requestlog.ExecutionInfo
+	info     requestlog.ExecutionInfo
 }
 
 // Response returns a response or error stored from command execution.
@@ -34,7 +34,7 @@ func (c *ExecutedCommand) Response() (interface{}, error) {
 // ExecutionInfo returns an ExecutionInfo for the executed command.
 // Execution time for cached responses is always zero.
 func (c *ExecutedCommand) ExecutionInfo() *requestlog.ExecutionInfo {
-	return c.info
+	return &c.info
 }
 
 // ResponseCache is a cache of command responses.
@@ -73,7 +73,7 @@ func (c *RequestCache) Get(name, key string) *ExecutedCommand {
 // later executions of the command.
 func (c *RequestCache) Add(
 	name, key string,
-	info *requestlog.ExecutionInfo,
+	info requestlog.ExecutionInfo,
 	r interface{},
 	err error) {
 

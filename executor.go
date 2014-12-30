@@ -85,7 +85,7 @@ func (e *Executor) Exec(ctx context.Context, cmd *Command) (result interface{}, 
 			result, err = ec.Response()
 			// Mark that the response came from cache and we already did the logging.
 			responseFromCache = true
-			e.logRequest(ctx, ec.ExecutionInfo(), cmd.Properties(e.cfg))
+			e.logRequest(ctx, *ec.ExecutionInfo(), cmd.Properties(e.cfg))
 			return
 		}
 	}
@@ -141,12 +141,12 @@ func (e *executionStats) addEvent(event requestlog.ExecutionEvent) {
 }
 
 // toExecutionInfo constructs an ExecutionInfo from the gathered data.
-func (e *executionStats) toExecutionInfo(commandName string) *requestlog.ExecutionInfo {
+func (e *executionStats) toExecutionInfo(commandName string) requestlog.ExecutionInfo {
 	return requestlog.NewExecutionInfo(commandName, time.Since(e.startTime), e.events)
 }
 
 // logRequest logs a request if the context contains a RequestLogger.
-func (e *Executor) logRequest(ctx context.Context, info *requestlog.ExecutionInfo, props *CommandProperties) {
+func (e *Executor) logRequest(ctx context.Context, info requestlog.ExecutionInfo, props *CommandProperties) {
 	e.metrics.Update(info.CommandName(), info.ExecutionTime(), info.Events()...)
 	if logger := requestlog.FromContext(ctx); props.RequestLogEnabled.Get() && logger != nil {
 		logger.AddExecutionInfo(info)
