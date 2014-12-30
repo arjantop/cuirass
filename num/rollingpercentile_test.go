@@ -13,11 +13,11 @@ func newTestingRollingPercentile(clock util.Clock) *num.RollingPercentile {
 	if clock == nil {
 		clock = util.NewClock()
 	}
-	return num.NewRollingPercentile(time.Millisecond, 3, clock)
+	return num.NewRollingPercentile(time.Millisecond, 3, 10, clock)
 }
 
 func TestRollingPercentileBucketSize(t *testing.T) {
-	n := num.NewRollingPercentile(time.Minute, 30, util.NewClock())
+	n := num.NewRollingPercentile(time.Minute, 30, 10, util.NewClock())
 	assert.Equal(t, 2*time.Second, n.BucketSize())
 	n2 := newTestingRollingPercentile(nil)
 	assert.Equal(t, time.Millisecond, n2.BucketSize())
@@ -34,6 +34,19 @@ func TestRollingPercentileBasic(t *testing.T) {
 	// 100th
 	assert.Equal(t, 10, rp.Get(100))
 	assert.Equal(t, 10, rp.Get(120))
+}
+
+func TestRollingPercentileValuesAreOverwritten(t *testing.T) {
+	rp := num.NewRollingPercentile(time.Minute, 30, 3, util.NewClock())
+	addAll(rp, 10, 10, 10)
+
+	assert.Equal(t, 10, rp.Get(0))
+	assert.Equal(t, 10, rp.Get(100))
+
+	addAll(rp, 3, 3, 3)
+
+	assert.Equal(t, 3, rp.Get(0))
+	assert.Equal(t, 3, rp.Get(100))
 }
 
 func TestRollingPercentileAll(t *testing.T) {

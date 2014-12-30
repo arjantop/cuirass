@@ -7,11 +7,16 @@ import (
 	"github.com/arjantop/cuirass/metrics"
 	"github.com/arjantop/cuirass/requestlog"
 	"github.com/arjantop/cuirass/util"
+	"github.com/arjantop/vaquita"
 	"github.com/stretchr/testify/assert"
 )
 
 func newTestingExecutionMetrics() *metrics.ExecutionMetrics {
-	return metrics.NewExecutionMetrics(util.NewClock())
+	cfg := vaquita.NewEmptyMapConfig()
+	f := vaquita.NewPropertyFactory(cfg)
+	return metrics.NewExecutionMetrics(&metrics.MetricsProperties{
+		RollingPercentileBucketSize: f.GetIntProperty("percentileBucketSize", 100),
+	}, util.NewClock())
 }
 
 func TestCommandMetricsCommandName(t *testing.T) {

@@ -11,7 +11,7 @@ var (
 	// Default size of statistical window over which the rolling number is defined.
 	DefaultWindowSize time.Duration = 10000 * time.Millisecond
 	// number of buckets in the statistical window.
-	DefaultWindowBuckets uint = 10
+	DefaultWindowBuckets int = 10
 )
 
 // RollingNumber is an implementation of a number that is defined for a specified
@@ -19,7 +19,7 @@ var (
 // The implementation is thread-safe.
 type RollingNumber struct {
 	bucketSize        time.Duration
-	currentBucket     uint
+	currentBucket     int
 	currentBucketTime time.Time
 	buckets           []int64
 	clock             util.Clock
@@ -27,7 +27,7 @@ type RollingNumber struct {
 }
 
 // NewRollingNumber constructs a new RollingNumber with a default value of zero.
-func NewRollingNumber(windowSize time.Duration, windowBuckets uint, clock util.Clock) *RollingNumber {
+func NewRollingNumber(windowSize time.Duration, windowBuckets int, clock util.Clock) *RollingNumber {
 	return &RollingNumber{
 		bucketSize:        calculateBucketSize(windowSize, windowBuckets),
 		currentBucket:     0,
@@ -43,7 +43,7 @@ func NewRollingNumber(windowSize time.Duration, windowBuckets uint, clock util.C
 // Actual window size can be larger if the requested number of buckets does not fit in
 // the window size.
 // TODO: move to separate file
-func calculateBucketSize(windowSize time.Duration, windowBuckets uint) time.Duration {
+func calculateBucketSize(windowSize time.Duration, windowBuckets int) time.Duration {
 	bucketSize := windowSize / time.Duration(windowBuckets)
 	if bucketSize < time.Millisecond {
 		// Calculated bucket size is smaller thatn the minimum.
@@ -92,15 +92,15 @@ func (n *RollingNumber) Reset() {
 
 // findCurrentBucket returns an index of the current bucket and updates the buckets
 // that should be reset for reuse based on the time elapsed since last access.
-func (n *RollingNumber) findCurrentBucket() uint {
+func (n *RollingNumber) findCurrentBucket() int {
 	now := n.clock.Now()
 	timeDiffFromFirstBucket := now.Sub(n.currentBucketTime)
-	bucketsBehind := uint(timeDiffFromFirstBucket / n.bucketSize)
+	bucketsBehind := int(timeDiffFromFirstBucket / n.bucketSize)
 	if bucketsBehind > 0 {
 		// We are not in the current bucket so we must reset the values of
 		// buckets that fell out of the sliding window.
-		numBuckets := uint(len(n.buckets))
-		for i := uint(1); i <= bucketsBehind; i++ {
+		numBuckets := len(n.buckets)
+		for i := 1; i <= bucketsBehind; i++ {
 			n.buckets[(n.currentBucket+i)%numBuckets] = 0
 		}
 		n.currentBucket = (n.currentBucket + bucketsBehind) % numBuckets

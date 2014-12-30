@@ -41,7 +41,7 @@ func NewExecutorWithClock(cfg vaquita.DynamicConfig, clock util.Clock) *Executor
 		cfg:             cfg,
 		circuitBreakers: newCbMap(),
 		semaphores:      NewSemaphoreFactory(),
-		metrics:         metrics.NewExecutionMetrics(clock),
+		metrics:         metrics.NewExecutionMetrics(metrics.NewMetricsProperties(cfg), clock),
 	}
 }
 

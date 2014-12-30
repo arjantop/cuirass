@@ -7,7 +7,21 @@ import (
 	"github.com/arjantop/cuirass/num"
 	"github.com/arjantop/cuirass/requestlog"
 	"github.com/arjantop/cuirass/util"
+	"github.com/arjantop/vaquita"
 )
+
+const RollingPercentileBucketSizeDefault = 100
+
+type MetricsProperties struct {
+	RollingPercentileBucketSize vaquita.IntProperty
+}
+
+func NewMetricsProperties(cfg vaquita.DynamicConfig) *MetricsProperties {
+	f := vaquita.NewPropertyFactory(cfg)
+	return &MetricsProperties{
+		RollingPercentileBucketSize: f.GetIntProperty("metrics.rollingPercentile.bucketSize", RollingPercentileBucketSizeDefault),
+	}
+}
 
 type CommandMetrics struct {
 	name          string
@@ -17,11 +31,11 @@ type CommandMetrics struct {
 	lock          *sync.RWMutex
 }
 
-func newCommandMetrics(clock util.Clock, name string) *CommandMetrics {
+func newCommandMetrics(props *MetricsProperties, clock util.Clock, name string) *CommandMetrics {
 	return &CommandMetrics{
 		name:          name,
 		eventCounters: make(map[requestlog.ExecutionEvent]*num.RollingNumber),
-		executionTime: num.NewRollingPercentile(num.DefaultWindowSize, num.DefaultWindowBuckets, clock),
+		executionTime: num.NewRollingPercentile(num.DefaultWindowSize, num.DefaultWindowBuckets, props.RollingPercentileBucketSize.Get(), clock),
 		clock:         clock,
 		lock:          new(sync.RWMutex),
 	}
@@ -114,13 +128,15 @@ func (m *CommandMetrics) ExecutionTimePercentile(p float64) time.Duration {
 
 type ExecutionMetrics struct {
 	clock          util.Clock
+	props          *MetricsProperties
 	commandMetrics map[string]*CommandMetrics
 	lock           *sync.RWMutex
 }
 
-func NewExecutionMetrics(clock util.Clock) *ExecutionMetrics {
+func NewExecutionMetrics(props *MetricsProperties, clock util.Clock) *ExecutionMetrics {
 	return &ExecutionMetrics{
 		clock:          clock,
+		props:          props,
 		commandMetrics: make(map[string]*CommandMetrics),
 		lock:           new(sync.RWMutex),
 	}
@@ -152,7 +168,7 @@ func (m *ExecutionMetrics) fetchMetrics(name string) *CommandMetrics {
 	if m, ok := m.commandMetrics[name]; ok {
 		return m
 	}
-	metrics := newCommandMetrics(m.clock, name)
+	metrics := newCommandMetrics(m.props, m.clock, name)
 	m.commandMetrics[name] = metrics
 	return metrics
 }

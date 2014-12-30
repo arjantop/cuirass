@@ -11,6 +11,7 @@ import (
 
 type RollingPercentile struct {
 	bucketSize        time.Duration
+	maxBucketItems    int
 	currentBucket     uint
 	currentBucketTime time.Time
 	buckets           []percentileBucket
@@ -18,15 +19,20 @@ type RollingPercentile struct {
 	lock              *sync.RWMutex
 }
 
-func NewRollingPercentile(windowSize time.Duration, windowBuckets uint, clock util.Clock) *RollingPercentile {
-	return &RollingPercentile{
+func NewRollingPercentile(windowSize time.Duration, windowBuckets, maxBucketItems int, clock util.Clock) *RollingPercentile {
+	p := &RollingPercentile{
 		bucketSize:        calculateBucketSize(windowSize, windowBuckets),
+		maxBucketItems:    maxBucketItems,
 		currentBucket:     0,
 		currentBucketTime: clock.Now(),
 		buckets:           make([]percentileBucket, windowBuckets),
 		clock:             clock,
 		lock:              new(sync.RWMutex),
 	}
+	for i, _ := range p.buckets {
+		p.buckets[i].reset(maxBucketItems)
+	}
+	return p
 }
 
 func (p *RollingPercentile) BucketSize() time.Duration {
@@ -49,7 +55,7 @@ func (p *RollingPercentile) findCurrentBucket() *percentileBucket {
 	if bucketsBehind > 0 {
 		numBuckets := uint(len(p.buckets))
 		for i := uint(1); i <= bucketsBehind%numBuckets; i++ {
-			p.buckets[(p.currentBucket+i)%numBuckets].reset()
+			p.buckets[(p.currentBucket+i)%numBuckets].reset(p.maxBucketItems)
 		}
 		p.currentBucket = (p.currentBucket + bucketsBehind) % numBuckets
 		p.currentBucketTime = now
@@ -95,7 +101,6 @@ func (p *RollingPercentile) Mean() int {
 	return int(sum / count)
 }
 
-// TODO: Use the method with interpolation
 func calculatePercentile(p float64, values []int) int {
 	if len(values) == 0 {
 		return 0
@@ -127,17 +132,28 @@ func round(v float64) int {
 }
 
 type percentileBucket struct {
-	vals []int
+	currentPosition int
+	vals            []int
 }
 
 func (b *percentileBucket) add(v int) {
-	b.vals = append(b.vals, v)
+	if len(b.vals) < cap(b.vals) {
+		b.vals = append(b.vals, v)
+	} else {
+		b.vals[b.currentPosition] = v
+	}
+	b.currentPosition = (b.currentPosition + 1) % cap(b.vals)
 }
 
 func (b *percentileBucket) values() []int {
 	return b.vals
 }
 
-func (b *percentileBucket) reset() {
-	b.vals = make([]int, 0)
+func (b *percentileBucket) reset(size int) {
+	if b.vals == nil || len(b.vals) != size {
+		b.vals = make([]int, 0, size)
+	} else {
+		b.vals = b.vals[:0]
+	}
+	b.currentPosition = 0
 }
