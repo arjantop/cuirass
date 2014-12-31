@@ -29,7 +29,6 @@ const (
 	CircuitBreakerErrorThresholdPercentageDefault = 50
 	CircuitBreakerForceOpenDefault                = false
 	CircuitBreakerForceClosedDefault              = false
-	CircuitBreakerHealthSnapshotIntervalDefault   = 500 * time.Millisecond
 )
 
 func newCommandProperties(cfg vaquita.DynamicConfig, commandName, commandGroup string) *CommandProperties {
@@ -48,7 +47,6 @@ func newCommandProperties(cfg vaquita.DynamicConfig, commandName, commandGroup s
 			ErrorThresholdPercentage: newIntProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.errorThresholdPercentage", CircuitBreakerErrorThresholdPercentageDefault),
 			ForceOpen:                newBoolProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.forceOpen", CircuitBreakerForceOpenDefault),
 			ForceClosed:              newBoolProperty(pf, propertyPrefix+".command", commandName, "circuitbreaker.forceClosed", CircuitBreakerForceClosedDefault),
-			HealthSnapshotInterval:   newDurationProperty(pf, propertyPrefix+".command", commandName, "metrics.healthSnapshot.intervalInMilliseconds", CircuitBreakerHealthSnapshotIntervalDefault),
 		},
 	}
 }

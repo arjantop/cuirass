@@ -29,7 +29,6 @@ type CircuitBreakerProperties struct {
 	ErrorThresholdPercentage vaquita.IntProperty
 	ForceOpen                vaquita.BoolProperty
 	ForceClosed              vaquita.BoolProperty
-	HealthSnapshotInterval   vaquita.DurationProperty
 }
 
 // CircuitBreaker is an implementation of circuit breaker pattern.
@@ -92,13 +91,13 @@ type health struct {
 
 // Constructs a new circuit breaker. The circuit is closed by default and allowed
 // the initial statistical values are zero ().
-func New(props *CircuitBreakerProperties, clock util.Clock) *CircuitBreaker {
+func New(props *CircuitBreakerProperties, healthSnapshotInterval vaquita.DurationProperty, clock util.Clock) *CircuitBreaker {
 	return &CircuitBreaker{
 		props:         props,
 		circuitOpen:   intFalse,
 		lastTrialTime: 0,
 		health: breakerHealth{
-			healthSnapshotInterval: props.HealthSnapshotInterval,
+			healthSnapshotInterval: healthSnapshotInterval,
 			clock:          clock,
 			errorCounter:   num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets, clock),
 			requestCounter: num.NewRollingNumber(num.DefaultWindowSize, num.DefaultWindowBuckets, clock),

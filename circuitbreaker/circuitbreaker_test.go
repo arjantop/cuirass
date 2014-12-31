@@ -28,8 +28,7 @@ func newTestingCircuitBreaker(cfg vaquita.DynamicConfig, clock util.Clock) *circ
 		f.GetIntProperty("errorThreshold", 50),
 		f.GetBoolProperty("forceOpen", false),
 		f.GetBoolProperty("forceClosed", false),
-		f.GetDurationProperty("healthSnapshot", 0, time.Millisecond),
-	}, clock)
+	}, f.GetDurationProperty("healthSnapshot", 0, time.Millisecond), clock)
 }
 
 func TestCircuitBreakerDoClosed(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/arjantop/cuirass"
 	"github.com/arjantop/cuirass/circuitbreaker"
+	"github.com/arjantop/cuirass/metrics"
 	"github.com/arjantop/cuirass/requestcache"
 	"github.com/arjantop/cuirass/requestlog"
 	"github.com/arjantop/cuirass/util"
@@ -196,7 +197,7 @@ func TestExecFailuresTripCircuitBreaker(t *testing.T) {
 		_, err := ex.Exec(ctx, cmd)
 		assert.Equal(t, errors.New("foo"), err)
 	}
-	clock.Add(cuirass.CircuitBreakerHealthSnapshotIntervalDefault + 1)
+	clock.Add(metrics.HealthSnapshotIntervalDefault + 1)
 	_, err := ex.Exec(ctx, cmd)
 	assert.Equal(t, circuitbreaker.CircuitOpenError, err)
 	assert.True(t, ex.IsCircuitBreakerOpen("FooCommand"))

@@ -29,8 +29,11 @@ func (h *MetricsStream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if len(metrics) == 0 {
 			fmt.Fprintln(w, "ping: ")
 		} else {
+			encoder := json.NewEncoder(w)
 			for _, m := range metrics {
-				fmt.Fprintf(w, "data: %s\n\n", h.metricsToJson(m))
+				w.Write([]byte("data: "))
+				h.writeMetrics(m, encoder)
+				w.Write([]byte("\n"))
 			}
 		}
 		if f, ok := w.(http.Flusher); ok {
@@ -42,8 +45,8 @@ func (h *MetricsStream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *MetricsStream) metricsToJson(m *metrics.CommandMetrics) []byte {
-	bytes, _ := json.Marshal(struct {
+func (h *MetricsStream) writeMetrics(m *metrics.CommandMetrics, e *json.Encoder) {
+	metrics := struct {
 		Type                                                     string         `json:"type"`
 		Name                                                     string         `json:"name"`
 		Group                                                    string         `json:"group"`
@@ -123,8 +126,8 @@ func (h *MetricsStream) metricsToJson(m *metrics.CommandMetrics) []byte {
 		true,
 		10000,
 		1,
-	})
-	return bytes
+	}
+	e.Encode(&metrics)
 }
 
 func collectExecutionPercentiles(m *metrics.CommandMetrics) map[string]int {

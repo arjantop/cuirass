@@ -223,7 +223,10 @@ func (e *Executor) getCircuitBreakerForCommand(cmd *Command) *circuitbreaker.Cir
 	if cb, ok := e.circuitBreakers.get(cmd.Name()); ok {
 		return cb
 	} else {
-		cb := circuitbreaker.New(cmd.Properties(e.cfg).CircuitBreaker, e.clock)
+		cb := circuitbreaker.New(
+			cmd.Properties(e.cfg).CircuitBreaker,
+			e.metrics.Properties().HealthSnapshotInterval,
+			e.clock)
 		e.circuitBreakers.set(cmd.Name(), cb)
 		return cb
 	}

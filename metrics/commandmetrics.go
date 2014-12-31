@@ -10,16 +10,21 @@ import (
 	"github.com/arjantop/vaquita"
 )
 
-const RollingPercentileBucketSizeDefault = 100
+const (
+	RollingPercentileBucketSizeDefault = 100
+	HealthSnapshotIntervalDefault      = 500 * time.Millisecond
+)
 
 type MetricsProperties struct {
 	RollingPercentileBucketSize vaquita.IntProperty
+	HealthSnapshotInterval      vaquita.DurationProperty
 }
 
 func NewMetricsProperties(cfg vaquita.DynamicConfig) *MetricsProperties {
 	f := vaquita.NewPropertyFactory(cfg)
 	return &MetricsProperties{
 		RollingPercentileBucketSize: f.GetIntProperty("metrics.rollingPercentile.bucketSize", RollingPercentileBucketSizeDefault),
+		HealthSnapshotInterval:      f.GetDurationProperty("metrics.healthSnapshot.intervalInMilliseconds", HealthSnapshotIntervalDefault, time.Millisecond),
 	}
 }
 
@@ -142,13 +147,20 @@ func NewExecutionMetrics(props *MetricsProperties, clock util.Clock) *ExecutionM
 	}
 }
 
+func (m *ExecutionMetrics) Properties() *MetricsProperties {
+	m.lock.RLock()
+	p := m.props
+	m.lock.RUnlock()
+	return p
+}
+
 func (m *ExecutionMetrics) All() []*CommandMetrics {
 	m.lock.RLock()
-	defer m.lock.RUnlock()
 	c := make([]*CommandMetrics, 0, len(m.commandMetrics))
 	for _, m := range m.commandMetrics {
 		c = append(c, m)
 	}
+	m.lock.RUnlock()
 	return c
 }
 
