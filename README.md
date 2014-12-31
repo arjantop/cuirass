@@ -25,10 +25,10 @@ Sample output:
 
 ## TODO
 
-* Metrics
 * Request Collapsing/Batching
-* Dynamic configuration
 
 ## Hystrix Dashboard
 
-The plan is to make it compatible with [hystrix-dashboard](https://github.com/Netflix/Hystrix/tree/master/hystrix-dashboard).
+Cuirass metrics can be monitored using the [hystrix-dashboard](https://github.com/Netflix/Hystrix/tree/master/hystrix-dashboard).
+
+![Hystrix Dashboard](https://raw.github.com/arjantop/cuirass/develop/images/dashboard.jpg)
