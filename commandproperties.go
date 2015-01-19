@@ -17,7 +17,7 @@ type CommandProperties struct {
 }
 
 const (
-	ExecutionTimeoutDefault               = time.Second
+	ExecutionTimeoutDefault               = 0
 	ExecutionMaxConcurrentRequestsDefault = 100
 	FallbackEnabledDefault                = true
 	RequestCacheEnabledDefault            = true

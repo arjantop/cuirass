@@ -52,8 +52,9 @@ func newRollingNumber(clock util.Clock) *num.RollingNumber {
 
 func (m *CommandMetrics) CommandName() string {
 	m.lock.RLock()
-	defer m.lock.RUnlock()
-	return m.name
+	n := m.name
+	m.lock.RUnlock()
+	return n
 }
 
 func (m *CommandMetrics) TotalRequests() int {
@@ -83,7 +84,6 @@ func (m *CommandMetrics) ErrorPercentage() int {
 
 func (m *CommandMetrics) update(executionTime time.Duration, evs ...requestlog.ExecutionEvent) {
 	m.lock.Lock()
-	defer m.lock.Unlock()
 	if hasEvent(evs, requestlog.ResponseFromCache) {
 		m.findEventCounter(requestlog.ResponseFromCache).Increment()
 	} else {
@@ -94,6 +94,7 @@ func (m *CommandMetrics) update(executionTime time.Duration, evs ...requestlog.E
 			m.executionTime.Add(int(executionTime))
 		}
 	}
+	m.lock.Unlock()
 }
 
 func (m *CommandMetrics) findEventCounter(e requestlog.ExecutionEvent) *num.RollingNumber {
@@ -116,10 +117,11 @@ func hasEvent(events []requestlog.ExecutionEvent, e requestlog.ExecutionEvent) b
 
 func (m *CommandMetrics) RollingSum(e requestlog.ExecutionEvent) int {
 	m.lock.Lock()
-	defer m.lock.Unlock()
 	if c, ok := m.eventCounters[e]; ok {
+		m.lock.Unlock()
 		return int(c.Sum())
 	}
+	m.lock.Unlock()
 	return 0
 }
 

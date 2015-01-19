@@ -482,7 +482,8 @@ func TestExecutorMetricsAreUpdated(t *testing.T) {
 func BenchmarkExecutorCommandExecution(b *testing.B) {
 	ctx := context.Background()
 	cmd := NewFooCommand("foo", "")
-	ex := newTestingExecutor(nil)
+	cfg := vaquita.NewEmptyMapConfig()
+	ex := cuirass.NewExecutor(cfg)
 	for i := 0; i < b.N; i++ {
 		ex.Exec(ctx, cmd)
 	}

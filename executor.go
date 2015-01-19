@@ -93,8 +93,11 @@ func (e *Executor) Exec(ctx context.Context, cmd *Command) (result interface{}, 
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, cmd.Properties(e.cfg).ExecutionTimeout.Get())
-	defer cancel()
+	if timeout := cmd.Properties(e.cfg).ExecutionTimeout.Get(); timeout != 0 {
+		var cancel func()
+		ctx, cancel = context.WithTimeout(ctx, cmd.Properties(e.cfg).ExecutionTimeout.Get())
+		defer cancel()
+	}
 	cb := e.getCircuitBreakerForCommand(cmd)
 	// Execute the command in the context of its circuit-breaker.
 	err = cb.Do(func() error {
@@ -252,8 +255,8 @@ func newCbMap() cbMap {
 // Method is safe to access by multiple readers.
 func (m *cbMap) get(name string) (*circuitbreaker.CircuitBreaker, bool) {
 	m.lock.RLock()
-	defer m.lock.RUnlock()
 	cb, ok := m.values[name]
+	m.lock.RUnlock()
 	return cb, ok
 }
 
@@ -261,6 +264,6 @@ func (m *cbMap) get(name string) (*circuitbreaker.CircuitBreaker, bool) {
 // Only one writer and no readers can access the map when executing set.
 func (m *cbMap) set(name string, cb *circuitbreaker.CircuitBreaker) {
 	m.lock.Lock()
-	defer m.lock.Unlock()
 	m.values[name] = cb
+	m.lock.Unlock()
 }
