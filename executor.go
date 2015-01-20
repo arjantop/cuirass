@@ -21,8 +21,13 @@ var (
 
 // Executor is a main service that knows how to execute commands and handle
 // their errors.
-// Executor is safe to be accessed by multiple threads.
-type Executor struct {
+// Executor must be safe to be accessed by multiple goroutines.
+type Executor interface {
+	Exec(ctx context.Context, cmd *Command) (result interface{}, err error)
+}
+
+// CommandExecutor is an implementation of an Executor interface.
+type CommandExecutor struct {
 	clock           util.Clock
 	cfg             vaquita.DynamicConfig
 	circuitBreakers cbMap
@@ -31,12 +36,12 @@ type Executor struct {
 }
 
 // NewExecutor constructs a new empty executor.
-func NewExecutor(cfg vaquita.DynamicConfig) *Executor {
+func NewExecutor(cfg vaquita.DynamicConfig) *CommandExecutor {
 	return NewExecutorWithClock(cfg, util.NewClock())
 }
 
-func NewExecutorWithClock(cfg vaquita.DynamicConfig, clock util.Clock) *Executor {
-	return &Executor{
+func NewExecutorWithClock(cfg vaquita.DynamicConfig, clock util.Clock) *CommandExecutor {
+	return &CommandExecutor{
 		clock:           clock,
 		cfg:             cfg,
 		circuitBreakers: newCbMap(),
@@ -45,11 +50,11 @@ func NewExecutorWithClock(cfg vaquita.DynamicConfig, clock util.Clock) *Executor
 	}
 }
 
-func (e *Executor) Metrics() *metrics.ExecutionMetrics {
+func (e *CommandExecutor) Metrics() *metrics.ExecutionMetrics {
 	return e.metrics
 }
 
-func (e *Executor) IsCircuitBreakerOpen(cmdName string) bool {
+func (e *CommandExecutor) IsCircuitBreakerOpen(cmdName string) bool {
 	if cb, ok := e.circuitBreakers.get(cmdName); ok {
 		return cb.IsOpen()
 	}
@@ -60,7 +65,7 @@ func (e *Executor) IsCircuitBreakerOpen(cmdName string) bool {
 // If command fails with an error or panics Fallback function with fallback logic
 // is executed. Every command execution is guarded by an internal circuit-breaker.
 // Panics are recovered and returned as errors.
-func (e *Executor) Exec(ctx context.Context, cmd *Command) (result interface{}, err error) {
+func (e *CommandExecutor) Exec(ctx context.Context, cmd *Command) (result interface{}, err error) {
 	var responseFromCache bool
 	stats := newExecutionStats(time.Now())
 	defer func() {
@@ -117,7 +122,7 @@ func (e *Executor) Exec(ctx context.Context, cmd *Command) (result interface{}, 
 	return
 }
 
-func (e *Executor) getRequestCache(ctx context.Context, cmd *Command) *requestcache.RequestCache {
+func (e *CommandExecutor) getRequestCache(ctx context.Context, cmd *Command) *requestcache.RequestCache {
 	cache := requestcache.FromContext(ctx)
 	if cache != nil && cmd.IsCacheable() && cmd.Properties(e.cfg).RequestCacheEnabled.Get() {
 		return cache
@@ -152,7 +157,7 @@ func (e *executionStats) toExecutionInfo(commandName string) requestlog.Executio
 }
 
 // logRequest logs a request if the context contains a RequestLogger.
-func (e *Executor) logRequest(ctx context.Context, info requestlog.ExecutionInfo, props *CommandProperties) {
+func (e *CommandExecutor) logRequest(ctx context.Context, info requestlog.ExecutionInfo, props *CommandProperties) {
 	e.metrics.Update(info.CommandName(), info.ExecutionTime(), info.Events()...)
 	if logger := requestlog.FromContext(ctx); props.RequestLogEnabled.Get() && logger != nil {
 		logger.AddExecutionInfo(info)
@@ -161,7 +166,7 @@ func (e *Executor) logRequest(ctx context.Context, info requestlog.ExecutionInfo
 
 // executeFallback handles a fallback for a failed command.
 // Because a Fallback can panic too errors are recovered the same way as for Exec.
-func (e *Executor) execFallback(
+func (e *CommandExecutor) execFallback(
 	ctx context.Context,
 	cmd *Command,
 	stats executionStats,
@@ -222,7 +227,7 @@ func panicToError(r interface{}) (err error) {
 
 // getcircuitbreakerforcommand returns a circuit breaker for a command or constructs
 // a new one and returns it.
-func (e *Executor) getCircuitBreakerForCommand(cmd *Command) *circuitbreaker.CircuitBreaker {
+func (e *CommandExecutor) getCircuitBreakerForCommand(cmd *Command) *circuitbreaker.CircuitBreaker {
 	if cb, ok := e.circuitBreakers.get(cmd.Name()); ok {
 		return cb
 	} else {

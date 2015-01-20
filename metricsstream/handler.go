@@ -12,10 +12,10 @@ import (
 )
 
 type MetricsStream struct {
-	executor *cuirass.Executor
+	executor *cuirass.CommandExecutor
 }
 
-func NewMetricsStream(e *cuirass.Executor) *MetricsStream {
+func NewMetricsStream(e *cuirass.CommandExecutor) *MetricsStream {
 	return &MetricsStream{
 		executor: e,
 	}

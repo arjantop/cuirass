@@ -10,7 +10,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-func NewGetOrderCommand(ex *cuirass.Executor, orderId int) *cuirass.Command {
+func NewGetOrderCommand(ex cuirass.Executor, orderId int) *cuirass.Command {
 	return cuirass.NewCommand("GetOrderCommand", func(ctx context.Context) (r interface{}, err error) {
 		c := make(chan error, 1)
 		go func() {
@@ -43,7 +43,7 @@ type Order struct {
 	User    *UserAccount
 }
 
-func NewOrder(ex *cuirass.Executor, ctx context.Context, orderId int) (*Order, error) {
+func NewOrder(ex cuirass.Executor, ctx context.Context, orderId int) (*Order, error) {
 	user, err := ex.Exec(ctx, NewGetUserAccountCommand(&http.Cookie{
 		Name:  "name",
 		Value: "value",

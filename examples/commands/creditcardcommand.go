@@ -12,8 +12,7 @@ import (
 )
 
 func NewCreditCardCommand(
-	ex *cuirass.Executor,
-	gateway *AuthorizeNetGateway,
+	ex cuirass.Executor, gateway *AuthorizeNetGateway,
 	order *Order,
 	payment *PaymentInformation,
 	amount *big.Rat) *cuirass.Command {

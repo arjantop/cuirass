@@ -39,7 +39,7 @@ func NewFooCommand(s, f string) *cuirass.Command {
 	return b.Build()
 }
 
-func newTestingExecutor(cfg vaquita.DynamicConfig) *cuirass.Executor {
+func newTestingExecutor(cfg vaquita.DynamicConfig) *cuirass.CommandExecutor {
 	if cfg == nil {
 		cfg = vaquita.NewEmptyMapConfig()
 	}
@@ -337,7 +337,7 @@ func TestExecSuccessCacheableCommandIsCached(t *testing.T) {
 	assert.Equal(t, "baz", r)
 }
 
-func assertCommandFromCache(t *testing.T, ex *cuirass.Executor, ctx context.Context) {
+func assertCommandFromCache(t *testing.T, ex *cuirass.CommandExecutor, ctx context.Context) {
 	cmd := NewCachableCommand("bar", "", "a")
 	r, err := ex.Exec(ctx, cmd)
 	assert.Nil(t, err)

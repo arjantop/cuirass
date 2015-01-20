@@ -39,7 +39,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8989", nil))
 }
 
-func monitorMetrics(exec *cuirass.Executor) {
+func monitorMetrics(exec *cuirass.CommandExecutor) {
 	timer := time.NewTimer(10 * time.Second)
 	go func() {
 		for {
@@ -72,7 +72,7 @@ func toMilliseconds(d time.Duration) int {
 	return int(d.Nanoseconds() / int64(time.Millisecond))
 }
 
-func simulateRequest(executor *cuirass.Executor, ctx context.Context) {
+func simulateRequest(executor *cuirass.CommandExecutor, ctx context.Context) {
 	user, err := executor.Exec(ctx, commands.NewGetUserAccountCommand(&http.Cookie{
 		Name:  "name",
 		Value: "value",
